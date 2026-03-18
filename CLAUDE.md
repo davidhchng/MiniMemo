@@ -52,28 +52,6 @@ Design expectation:
 
 ---
 
-## Current phase (IMPORTANT)
-
-We are in:
-### Phase: Pre-AI polish (single-dataset focus)
-
-Focus ONLY on:
-- improving deterministic insights
-- improving report structure
-- improving UI quality
-- improving flexibility of analysis
-
-Multi-dataset is:
-- considered in architecture
-- NOT fully implemented yet
-
-DO NOT:
-- integrate any API
-- add LLM calls
-- build join logic yet
-
----
-
 ## What a “good output” looks like
 
 A strong report should:
@@ -139,14 +117,11 @@ When given a task:
 
 ---
 
-## Long-term vision (for alignment only)
+## Long-term vision 
 
-Later (NOT now), MiniMemo will:
 - accept multiple datasets with relationships
 - suggest joins between datasets
 - accept user context (analysis goal, dataset meaning)
 - use AI to generate narrative summaries
 - generate richer visualizations
 
-But current priority is:
-> make the deterministic core strong and polished

@@ -1,14 +1,18 @@
 import { create } from "zustand"
-import type { AnalysisResponse } from "../lib/types"
+import type { BatchAnalysisResponse } from "../lib/types"
 
 interface ReportState {
-  report: AnalysisResponse | null
-  setReport: (report: AnalysisResponse) => void
+  report: BatchAnalysisResponse | null
+  pendingFiles: File[] | null
+  setReport: (report: BatchAnalysisResponse) => void
+  setPendingFiles: (files: File[]) => void
   clear: () => void
 }
 
 export const useReportStore = create<ReportState>((set) => ({
   report: null,
+  pendingFiles: null,
   setReport: (report) => set({ report }),
-  clear: () => set({ report: null }),
+  setPendingFiles: (files) => set({ pendingFiles: files }),
+  clear: () => set({ report: null, pendingFiles: null }),
 }))

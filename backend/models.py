@@ -64,10 +64,45 @@ class InsightBlock(BaseModel):
 class ReportSection(BaseModel):
     title: str
     content: str
-    bullets: list[str] = []  # optional scannable items (e.g. recommendations)
+    bullets: list[str] = []  # optional scannable items
+
+
+class RecommendationItem(BaseModel):
+    title: str        # short action-oriented heading, e.g. "Prioritize High-Demand Stations"
+    observation: str  # one sentence: what the data shows
+    action: str       # one sentence: what to do about it
 
 
 class AnalysisResponse(BaseModel):
     dataset: DatasetSummary
     insights: list[InsightBlock]
-    report_sections: list[ReportSection]
+    report_sections: list[ReportSection]   # used for Project Background only
+    recommendation_items: list[RecommendationItem] = []
+    assumptions: list[str] = []
+    limitations: list[str] = []
+    conclusion: str = ""
+
+
+class JoinInsight(BaseModel):
+    total_a: int                           # row count of dataset_a
+    total_b: int                           # row count of dataset_b
+    matched_rows: int                      # inner join row count (distinct key values matched)
+    left_only_rows: int                    # distinct keys in a with no match in b
+    right_only_rows: int                   # distinct keys in b with no match in a
+    match_pct: float                       # matched / min(total_a, total_b)
+    cross_insights: list[InsightBlock] = []  # cross-dataset breakdowns computed from the join
+
+
+class JoinSuggestion(BaseModel):
+    dataset_a: str       # filename
+    dataset_b: str       # filename
+    column_a: str
+    column_b: str
+    reason: str          # human-readable explanation
+    confidence: float    # 0.0–1.0
+    join_insight: JoinInsight
+
+
+class BatchAnalysisResponse(BaseModel):
+    results: list[AnalysisResponse]
+    suggested_joins: list[JoinSuggestion] = []

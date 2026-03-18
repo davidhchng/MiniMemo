@@ -59,8 +59,43 @@ export interface ReportSection {
   bullets: string[]
 }
 
+export interface RecommendationItem {
+  title: string
+  observation: string
+  action: string
+}
+
 export interface AnalysisResponse {
   dataset: DatasetSummary
   insights: InsightBlock[]
-  report_sections: ReportSection[]
+  report_sections: ReportSection[]   // used for Project Background only
+  recommendation_items: RecommendationItem[]
+  assumptions: string[]
+  limitations: string[]
+  conclusion: string
+}
+
+export interface JoinInsight {
+  total_a: number
+  total_b: number
+  matched_rows: number
+  left_only_rows: number
+  right_only_rows: number
+  match_pct: number
+  cross_insights: InsightBlock[]
+}
+
+export interface JoinSuggestion {
+  dataset_a: string
+  dataset_b: string
+  column_a: string
+  column_b: string
+  reason: string
+  confidence: number
+  join_insight: JoinInsight
+}
+
+export interface BatchAnalysisResponse {
+  results: AnalysisResponse[]
+  suggested_joins: JoinSuggestion[]
 }

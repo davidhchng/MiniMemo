@@ -1,31 +1,35 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { analyzeFile } from "../../lib/api"
 import { useReportStore } from "../../store/report-store"
 
 export default function UploadPage() {
-  const [file, setFile] = useState<File | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [files, setFiles] = useState<File[]>([])
+  const [isDragging, setIsDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const setReport = useReportStore((s) => s.setReport)
+  const setPendingFiles = useReportStore((s) => s.setPendingFiles)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!file) return
-    setLoading(true)
+  function addFiles(incoming: File[]) {
+    const valid = incoming.filter((f) => f.name.endsWith(".csv") || f.name.endsWith(".xlsx"))
+    setFiles((prev) => {
+      const existing = new Set(prev.map((f) => f.name))
+      return [...prev, ...valid.filter((f) => !existing.has(f.name))]
+    })
     setError(null)
-    try {
-      const result = await analyzeFile(file)
-      setReport(result)
-      router.push("/report")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.")
-    } finally {
-      setLoading(false)
-    }
+  }
+
+  function removeFile(name: string) {
+    setFiles((prev) => prev.filter((f) => f.name !== name))
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (files.length === 0) return
+    setPendingFiles(files)
+    router.push("/context")
   }
 
   return (
@@ -43,14 +47,7 @@ export default function UploadPage() {
       <div style={{ width: "100%", maxWidth: 400, marginBottom: 24 }}>
         <button
           onClick={() => router.push("/")}
-          style={{
-            background: "none",
-            border: "none",
-            padding: 0,
-            fontSize: 13,
-            color: "#9ca3af",
-            cursor: "pointer",
-          }}
+          style={{ background: "none", border: "none", padding: 0, fontSize: 13, color: "#9ca3af", cursor: "pointer" }}
         >
           ← Back
         </button>
@@ -66,21 +63,17 @@ export default function UploadPage() {
         maxWidth: 400,
       }}>
         <div style={{ marginBottom: 22 }}>
-          <h2 style={{
-            fontSize: 17,
-            fontWeight: 700,
-            letterSpacing: "-0.02em",
-            margin: "0 0 6px",
-            color: "#111827",
-          }}>
-            Upload dataset
+          <h2 style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 6px", color: "#111827" }}>
+            Upload datasets
           </h2>
           <p style={{ fontSize: 13, color: "#9ca3af", margin: 0 }}>
-            CSV or XLSX · up to 200,000 rows
+            CSV or XLSX · up to 200,000 rows · multiple files supported
           </p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* Drop zone */}
           <div>
             <span style={{
               display: "block",
@@ -91,51 +84,90 @@ export default function UploadPage() {
               color: "#9ca3af",
               marginBottom: 8,
             }}>
-              File
+              Files
             </span>
-            <label style={{
-              display: "block",
-              border: `1.5px dashed ${file ? "#86efac" : "#d1d5db"}`,
-              borderRadius: 7,
-              padding: "14px 16px",
-              cursor: "pointer",
-              background: file ? "#f0fdf4" : "#fafafa",
-            }}>
-              <input
-                type="file"
-                accept=".csv,.xlsx"
-                style={{ display: "block", width: "100%", cursor: "pointer", fontSize: 13, color: "#374151" }}
-                onChange={(e) => {
-                  setFile(e.target.files?.[0] ?? null)
-                  setError(null)
-                }}
-              />
-            </label>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setIsDragging(false)
+                addFiles(Array.from(e.dataTransfer.files))
+              }}
+              onClick={() => inputRef.current?.click()}
+              style={{
+                border: `1.5px dashed ${isDragging ? "#6b7280" : files.length > 0 ? "#86efac" : "#d1d5db"}`,
+                borderRadius: 7,
+                padding: "20px 16px",
+                cursor: "pointer",
+                background: isDragging ? "#f9fafb" : files.length > 0 ? "#f0fdf4" : "#fafafa",
+                textAlign: "center",
+                transition: "border-color 0.1s, background 0.1s",
+              }}
+            >
+              <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
+                Drop files here{" "}
+                <span style={{ color: "#374151", fontWeight: 500 }}>or browse</span>
+              </p>
+              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9ca3af" }}>CSV or XLSX</p>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".csv,.xlsx"
+              multiple
+              style={{ display: "none" }}
+              onChange={(e) => {
+                addFiles(Array.from(e.target.files ?? []))
+                e.target.value = ""
+              }}
+            />
           </div>
 
-          {file && (
-            <p style={{ fontSize: 13, color: "#059669", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
-              <span>✓</span>
-              <span>{file.name} — {(file.size / 1024).toFixed(1)} KB</span>
-            </p>
+          {/* Selected file list */}
+          {files.length > 0 && (
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
+              {files.map((f) => (
+                <li key={f.name} style={{ fontSize: 13, color: "#059669", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>✓</span>
+                  <span style={{ flex: 1 }}>{f.name} — {(f.size / 1024).toFixed(1)} KB</span>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(f.name)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: "0 2px",
+                      fontSize: 14,
+                      color: "#9ca3af",
+                      cursor: "pointer",
+                      lineHeight: 1,
+                    }}
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
 
           <button
             type="submit"
-            disabled={!file || loading}
+            disabled={files.length === 0}
             style={{
               padding: "10px 0",
-              background: !file || loading ? "#f3f4f6" : "#111827",
-              color: !file || loading ? "#9ca3af" : "#ffffff",
+              background: files.length === 0 ? "#f3f4f6" : "#111827",
+              color: files.length === 0 ? "#9ca3af" : "#ffffff",
               border: "none",
               borderRadius: 7,
               fontSize: 14,
               fontWeight: 600,
-              cursor: !file || loading ? "not-allowed" : "pointer",
+              cursor: files.length === 0 ? "not-allowed" : "pointer",
               letterSpacing: "-0.01em",
             }}
           >
-            {loading ? "Analyzing…" : "Generate Report"}
+            Continue →
           </button>
         </form>
 

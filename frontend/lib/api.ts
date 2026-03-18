@@ -1,10 +1,15 @@
-import type { AnalysisResponse } from "./types"
+import type { BatchAnalysisResponse } from "./types"
 
 const API_URL = "http://localhost:8001"
 
-export async function analyzeFile(file: File): Promise<AnalysisResponse> {
+export async function analyzeFiles(
+  files: File[],
+  context?: { goals?: string; background?: string },
+): Promise<BatchAnalysisResponse> {
   const form = new FormData()
-  form.append("file", file)
+  files.forEach((f) => form.append("files", f))
+  if (context?.goals)      form.append("goals", context.goals)
+  if (context?.background) form.append("background", context.background)
 
   const res = await fetch(`${API_URL}/analyze`, {
     method: "POST",
@@ -16,5 +21,5 @@ export async function analyzeFile(file: File): Promise<AnalysisResponse> {
     throw new Error(body?.detail ?? `Request failed with status ${res.status}`)
   }
 
-  return res.json() as Promise<AnalysisResponse>
+  return res.json() as Promise<BatchAnalysisResponse>
 }

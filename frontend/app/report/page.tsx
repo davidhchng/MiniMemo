@@ -1,18 +1,17 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import type { PlotParams } from "react-plotly.js"
 import { useReportStore } from "../../store/report-store"
-import type { ChartSpec, ColumnSummary, InsightBlock, ReportSection } from "../../lib/types"
+import type { ChartSpec, ColumnSummary, InsightBlock, JoinInsight, JoinSuggestion, RecommendationItem, ReportSection } from "../../lib/types"
 
 const Plot = dynamic<PlotParams>(() => import("react-plotly.js"), { ssr: false })
 
 // ─── Design tokens ──────────────────────────────────────────────────────────
 const T = {
   pageBg:        "#ffffff",
-  cardBg:        "#ffffff",
   divider:       "#e5e7eb",
   borderLight:   "#f3f4f6",
   textPrimary:   "#111827",
@@ -20,7 +19,6 @@ const T = {
   textMuted:     "#6b7280",
   textFaint:     "#9ca3af",
   tableZebra:    "#fafafa",
-  // kept for dtype/flag badges only
   violet:        "#7c3aed",
   violetLight:   "#f5f3ff",
 }
@@ -32,15 +30,39 @@ export default function ReportPage() {
   const clear  = useReportStore((s) => s.clear)
   const router = useRouter()
 
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [pendingJoins, setPendingJoins] = useState(true)
+  const [confirmedJoins, setConfirmedJoins] = useState<JoinSuggestion[]>([])
+
   useEffect(() => {
     if (!report) router.replace("/")
   }, [report, router])
 
+  useEffect(() => {
+    if (report && report.suggested_joins.length === 0) setPendingJoins(false)
+  }, [report])
+
   if (!report) return null
 
-  const { dataset, insights, report_sections } = report
+  if (pendingJoins && report.suggested_joins.length > 0) {
+    return (
+      <JoinConfirmScreen
+        suggestions={report.suggested_joins}
+        onConfirm={(confirmed) => { setConfirmedJoins(confirmed); setPendingJoins(false) }}
+      />
+    )
+  }
+
+  const current = report.results[activeIndex]
+  const {
+    dataset, insights, report_sections,
+    recommendation_items, assumptions, limitations, conclusion,
+  } = current
+
   const keyInsights   = insights.find((b) => b.title === "Key Insights") ?? null
   const otherInsights = insights.filter((b) => b.title !== "Key Insights")
+  const multiFile     = report.results.length > 1
+  const projectBg     = report_sections.find((s: ReportSection) => s.title === "Project Background") ?? null
 
   return (
     <div style={{ minHeight: "100vh", background: T.pageBg }}>
@@ -58,97 +80,106 @@ export default function ReportPage() {
         top: 0,
         zIndex: 10,
       }}>
-        <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: "0.01em", color: T.textPrimary }}>
-          MiniMemo
-        </span>
+        <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: "0.01em", color: T.textPrimary }}>MiniMemo</span>
         <button
           onClick={() => { clear(); router.push("/") }}
-          style={{
-            background: "none",
-            border: "none",
-            padding: "5px 0",
-            fontSize: 13,
-            color: T.textMuted,
-            cursor: "pointer",
-            fontWeight: 400,
-          }}
+          style={{ background: "none", border: "none", padding: "5px 0", fontSize: 13, color: T.textMuted, cursor: "pointer" }}
         >
           ← New analysis
         </button>
       </nav>
 
-      {/* Body */}
-      <main style={{ maxWidth: 900, margin: "0 auto", padding: "64px 48px 120px" }}>
+      <main style={{ maxWidth: 860, margin: "0 auto", padding: "64px 48px 120px" }}>
 
-        {/* Page header */}
-        <div style={{ marginBottom: 72 }}>
-          <h1 style={{
-            fontSize: 32,
-            fontWeight: 700,
-            letterSpacing: "-0.03em",
-            lineHeight: 1.1,
-            margin: "0 0 20px",
-            color: T.textPrimary,
-          }}>
-            Analytics Report
+        {/* ── Page header ── */}
+        <div style={{ marginBottom: 64 }}>
+          <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1, margin: "0 0 16px", color: T.textPrimary }}>
+            Full Report
           </h1>
-          <div style={{
-            height: 1,
-            background: T.divider,
-            marginBottom: 16,
-          }} />
-          <p style={{
-            fontSize: 13,
-            color: T.textFaint,
-            margin: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: 0,
-          }}>
+          <div style={{ height: 1, background: T.divider, marginBottom: 14 }} />
+          <p style={{ fontSize: 13, color: T.textFaint, margin: 0, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
             <span style={{ color: T.textMuted, fontWeight: 500 }}>{dataset.filename}</span>
-            <Sep />
-            {dataset.row_count.toLocaleString()} rows
-            <Sep />
-            {dataset.col_count} columns
+            <Sep />{dataset.row_count.toLocaleString()} rows
+            <Sep />{dataset.col_count} columns
           </p>
         </div>
 
-        {/* Key Insights — editorial numbered list */}
-        {keyInsights && (
-          <Section label="Key Insights">
+        {/* ── Dataset tabs ── */}
+        {multiFile && (
+          <div style={{ marginBottom: 48 }}>
+            <SectionLabel>Datasets</SectionLabel>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+              {report.results.map((r, i) => (
+                <button key={i} onClick={() => setActiveIndex(i)} style={{
+                  padding: "6px 14px", borderRadius: 6, border: "none", fontSize: 13,
+                  fontWeight: i === activeIndex ? 600 : 400,
+                  background: i === activeIndex ? T.textPrimary : T.borderLight,
+                  color: i === activeIndex ? "#ffffff" : T.textMuted,
+                  cursor: "pointer", letterSpacing: "-0.01em",
+                }}>
+                  {r.dataset.filename}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Relationships ── */}
+        {confirmedJoins.length > 0 && (
+          <Section label="Relationships">
+            {confirmedJoins.map((j, i) => (
+              <div key={i} style={{ marginBottom: i < confirmedJoins.length - 1 ? 48 : 0 }}>
+                <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: T.textPrimary }}>
+                  {j.dataset_a} · {j.column_a} → {j.dataset_b} · {j.column_b}
+                </p>
+                <p style={{ margin: "0 0 16px", fontSize: 13, color: T.textMuted }}>{j.reason}</p>
+                <JoinStats insight={j.join_insight} nameA={j.dataset_a} nameB={j.dataset_b} />
+                {j.join_insight.cross_insights.length > 0 && (
+                  <div style={{ marginTop: 28 }}>
+                    {j.join_insight.cross_insights.map((insight, idx) => (
+                      <InsightDeepDiveBlock key={insight.title} insight={insight} isFirst={idx === 0} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </Section>
+        )}
+
+        {/* ── 1. Project Background ── */}
+        {projectBg && (
+          <Section label="Project Background">
+            <p style={{ margin: 0, fontSize: 15, lineHeight: 1.9, color: T.textSecondary, maxWidth: 660 }}>
+              {projectBg.content}
+            </p>
+          </Section>
+        )}
+
+        {/* ── 2. Executive Summary ── */}
+        {keyInsights && keyInsights.bullets.length > 0 && (
+          <Section label="Executive Summary">
             <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
               {keyInsights.bullets.map((b, i) => (
-                <li
-                  key={i}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "36px 1fr",
-                    gap: 16,
-                    padding: "18px 0",
-                    borderBottom: `1px solid ${T.borderLight}`,
-                    alignItems: "start",
-                  }}
-                >
-                  <span style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: T.textFaint,
-                    letterSpacing: "0.06em",
-                    paddingTop: 4,
-                    fontVariantNumeric: "tabular-nums",
-                  }}>
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <span style={{ fontSize: 15, lineHeight: 1.75, color: T.textSecondary }}>
-                    {b}
-                  </span>
+                <li key={i} style={{
+                  display: "grid",
+                  gridTemplateColumns: "20px 1fr",
+                  gap: 14,
+                  padding: "12px 0",
+                  borderBottom: `1px solid ${T.borderLight}`,
+                  fontSize: 14,
+                  lineHeight: 1.8,
+                  color: T.textSecondary,
+                  alignItems: "start",
+                }}>
+                  <span style={{ color: T.violet, fontSize: 7, paddingTop: 7 }}>●</span>
+                  {b}
                 </li>
               ))}
             </ul>
           </Section>
         )}
 
-        {/* Data Structure — bare table, no card */}
+        {/* ── 3. Data Structure ── */}
         <Section label="Data Structure">
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -156,15 +187,10 @@ export default function ReportPage() {
                 <tr>
                   {["Column", "Type", "Flags", "Nulls", "Unique", "Mean", "Min", "Max"].map((h) => (
                     <th key={h} style={{
-                      textAlign: "left",
-                      padding: "0 20px 12px 0",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      letterSpacing: "0.07em",
-                      textTransform: "uppercase",
-                      color: T.textFaint,
-                      borderBottom: `1px solid ${T.divider}`,
-                      whiteSpace: "nowrap",
+                      textAlign: "left", padding: "0 20px 12px 0",
+                      fontSize: 11, fontWeight: 600, letterSpacing: "0.07em",
+                      textTransform: "uppercase", color: T.textFaint,
+                      borderBottom: `1px solid ${T.divider}`, whiteSpace: "nowrap",
                     }}>
                       {h}
                     </th>
@@ -174,41 +200,20 @@ export default function ReportPage() {
               <tbody>
                 {dataset.columns.map((col: ColumnSummary, i) => (
                   <tr key={col.name} style={{ background: i % 2 === 1 ? T.tableZebra : T.pageBg }}>
-                    <td style={td}>
-                      <span style={{ fontWeight: 500, color: T.textPrimary, fontSize: 13 }}>
-                        {col.name}
-                      </span>
-                    </td>
-                    <td style={td}>
-                      <Badge {...dtypeStyle(col.dtype)}>{col.dtype}</Badge>
-                    </td>
+                    <td style={td}><span style={{ fontWeight: 500, color: T.textPrimary }}>{col.name}</span></td>
+                    <td style={td}><Badge {...dtypeStyle(col.dtype)}>{col.dtype}</Badge></td>
                     <td style={td}>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
                         {col.flags.length > 0
-                          ? col.flags.map((f) => (
-                              <Badge key={f} {...flagStyle(f)}>
-                                {f.replace(/_/g, "\u00a0")}
-                              </Badge>
-                            ))
-                          : <Dash />
-                        }
+                          ? col.flags.map((f) => <Badge key={f} {...flagStyle(f)}>{f.replace(/_/g, "\u00a0")}</Badge>)
+                          : <Dash />}
                       </div>
                     </td>
-                    <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
-                      {(col.null_pct * 100).toFixed(1)}%
-                    </td>
-                    <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
-                      {col.unique_count.toLocaleString()}
-                    </td>
-                    <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
-                      {col.numeric_stats?.mean ?? <Dash />}
-                    </td>
-                    <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
-                      {col.numeric_stats?.min ?? <Dash />}
-                    </td>
-                    <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
-                      {col.numeric_stats?.max ?? <Dash />}
-                    </td>
+                    <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>{(col.null_pct * 100).toFixed(1)}%</td>
+                    <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>{col.unique_count.toLocaleString()}</td>
+                    <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>{col.numeric_stats?.mean ?? <Dash />}</td>
+                    <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>{col.numeric_stats?.min ?? <Dash />}</td>
+                    <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>{col.numeric_stats?.max ?? <Dash />}</td>
                   </tr>
                 ))}
               </tbody>
@@ -216,92 +221,92 @@ export default function ReportPage() {
           </div>
         </Section>
 
-        {/* Report sections — no card, just text */}
-        {report_sections.map((section: ReportSection) => (
-          <Section key={section.title} label={section.title}>
-            <p style={{
-              margin: section.bullets.length > 0 ? "0 0 20px" : 0,
-              fontSize: 15,
-              lineHeight: 1.85,
-              color: T.textMuted,
-              maxWidth: 680,
-            }}>
-              {section.content}
-            </p>
-            {section.bullets.length > 0 && (
-              <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
-                {section.bullets.map((b, i) => (
-                  <li key={i} style={{
-                    display: "flex",
-                    gap: 16,
-                    padding: "11px 0",
-                    fontSize: 14,
-                    lineHeight: 1.7,
-                    color: T.textSecondary,
-                    borderTop: `1px solid ${T.borderLight}`,
-                  }}>
-                    <span style={{ color: T.textFaint, flexShrink: 0, lineHeight: 1.7 }}>—</span>
-                    {b}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
-        ))}
-
-        {/* Analysis blocks */}
+        {/* ── 4. Insights Deep-Dive ── */}
         {otherInsights.length > 0 && (
-          <Section label="Analysis">
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {otherInsights.map((insight: InsightBlock, idx) => (
-                <div
-                  key={insight.title}
-                  style={{
-                    padding: "28px 0",
-                    borderTop: idx === 0 ? "none" : `1px solid ${T.borderLight}`,
-                  }}
-                >
+          <Section label="Insights Deep-Dive">
+            {otherInsights.map((insight: InsightBlock, idx) => (
+              <InsightDeepDiveBlock key={insight.title} insight={insight} isFirst={idx === 0} />
+            ))}
+          </Section>
+        )}
+
+        {/* ── 5. Recommendations ── */}
+        {recommendation_items.length > 0 && (
+          <Section label="Recommendations">
+            <p style={{ margin: "0 0 28px", fontSize: 14, lineHeight: 1.8, color: T.textMuted, maxWidth: 660 }}>
+              The following recommendations are grounded in the patterns identified above.
+              {" "}Each recommendation is paired with the observation that motivates it.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              {recommendation_items.map((rec: RecommendationItem, i) => (
+                <RecommendationBlock key={i} rec={rec} index={i} total={recommendation_items.length} />
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* ── 6. Assumptions ── */}
+        {assumptions.length > 0 && (
+          <Section label="Assumptions">
+            <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+              {assumptions.map((a, i) => (
+                <BulletRow key={i} text={a} isLast={i === assumptions.length - 1} />
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {/* ── 7. Limitations ── */}
+        {limitations.length > 0 && (
+          <Section label="Limitations">
+            <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+              {limitations.map((l, i) => (
+                <BulletRow key={i} text={l} isLast={i === limitations.length - 1} />
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {/* ── 8. Conclusion ── */}
+        {(conclusion || (keyInsights && keyInsights.bullets.length > 0)) && (
+          <Section label="Conclusion">
+            <div style={{ background: T.violetLight, borderRadius: 10, padding: "28px 32px" }}>
+              {conclusion && (
+                <p style={{
+                  margin: keyInsights && keyInsights.bullets.length > 0 ? "0 0 24px" : 0,
+                  fontSize: 15,
+                  lineHeight: 2.0,
+                  color: T.textSecondary,
+                  maxWidth: 660,
+                }}>
+                  {conclusion}
+                </p>
+              )}
+              {keyInsights && keyInsights.bullets.length > 0 && (
+                <>
                   <p style={{
-                    margin: "0 0 6px",
-                    fontSize: 17,
-                    fontWeight: 700,
-                    letterSpacing: "-0.02em",
-                    color: T.textPrimary,
+                    margin: "0 0 10px",
+                    fontSize: 11, fontWeight: 600, letterSpacing: "0.07em",
+                    textTransform: "uppercase", color: T.textFaint,
+                    borderTop: conclusion ? `1px solid ${T.divider}` : "none",
+                    paddingTop: conclusion ? 20 : 0,
                   }}>
-                    {insight.title}
+                    Key Findings
                   </p>
-                  <p style={{
-                    margin: "0 0 16px",
-                    fontSize: 13,
-                    color: T.textFaint,
-                    lineHeight: 1.6,
-                  }}>
-                    {insight.summary}
-                  </p>
-                  <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
-                    {insight.bullets.map((b, i) => (
+                  <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                    {keyInsights.bullets.map((b, i) => (
                       <li key={i} style={{
-                        display: "flex",
-                        gap: 14,
-                        padding: "8px 0",
-                        fontSize: 14,
-                        lineHeight: 1.7,
-                        color: T.textSecondary,
-                        borderTop: `1px solid ${T.borderLight}`,
+                        display: "grid", gridTemplateColumns: "20px 1fr", gap: 12,
+                        padding: "8px 0", borderTop: `1px solid ${T.divider}`,
+                        fontSize: 14, lineHeight: 1.7, color: T.textSecondary, alignItems: "start",
                       }}>
-                        <span style={{ color: T.textFaint, flexShrink: 0 }}>—</span>
+                        <span style={{ color: T.violet, fontSize: 7, paddingTop: 7 }}>●</span>
                         {b}
                       </li>
                     ))}
                   </ul>
-                  {insight.chart && <InsightChart chart={insight.chart} />}
-                  {insight.caveat && (
-                    <p style={{ margin: "14px 0 0", fontSize: 12, color: T.textFaint, fontStyle: "italic" }}>
-                      {insight.caveat}
-                    </p>
-                  )}
-                </div>
-              ))}
+                </>
+              )}
             </div>
           </Section>
         )}
@@ -311,47 +316,245 @@ export default function ReportPage() {
   )
 }
 
+// ─── Insight Deep-Dive Block ──────────────────────────────────────────────────
+
+function InsightDeepDiveBlock({ insight, isFirst }: { insight: InsightBlock; isFirst: boolean }) {
+  return (
+    <div style={{
+      padding: "32px 0",
+      borderTop: isFirst ? "none" : `1px solid ${T.borderLight}`,
+    }}>
+      <h3 style={{
+        margin: "0 0 10px",
+        fontSize: 17,
+        fontWeight: 700,
+        letterSpacing: "-0.02em",
+        color: T.textPrimary,
+        lineHeight: 1.3,
+      }}>
+        {insight.title}
+      </h3>
+      {insight.summary && (
+        <p style={{ margin: "0 0 16px", fontSize: 14, color: T.textMuted, lineHeight: 1.7, maxWidth: 640 }}>
+          {insight.summary}
+        </p>
+      )}
+      {insight.chart && <InsightChart chart={insight.chart} />}
+      {insight.bullets.length > 0 && (
+        <ul style={{ margin: insight.chart ? "20px 0 0" : 0, padding: 0, listStyle: "none" }}>
+          {insight.bullets.map((b, i) => (
+            <li key={i} style={{
+              display: "grid", gridTemplateColumns: "20px 1fr", gap: 12,
+              padding: "8px 0", borderTop: `1px solid ${T.borderLight}`,
+              fontSize: 14, lineHeight: 1.75, color: T.textSecondary, alignItems: "start",
+            }}>
+              <span style={{ color: T.textFaint, flexShrink: 0, paddingTop: 1 }}>—</span>
+              {b}
+            </li>
+          ))}
+        </ul>
+      )}
+      {insight.caveat && (
+        <p style={{ margin: "14px 0 0", fontSize: 12, color: T.textFaint, fontStyle: "italic" }}>
+          {insight.caveat}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Recommendation Block ────────────────────────────────────────────────────
+
+function RecommendationBlock({
+  rec, index, total,
+}: {
+  rec: RecommendationItem
+  index: number
+  total: number
+}) {
+  return (
+    <div style={{
+      padding: "24px 0",
+      borderTop: `1px solid ${T.borderLight}`,
+      borderBottom: index === total - 1 ? `1px solid ${T.borderLight}` : "none",
+    }}>
+      {/* Title row */}
+      <div style={{ display: "grid", gridTemplateColumns: "32px 1fr", gap: 14, alignItems: "start", marginBottom: 14 }}>
+        <span style={{
+          fontSize: 11, fontWeight: 700, color: T.violet,
+          letterSpacing: "0.04em", paddingTop: 3, fontVariantNumeric: "tabular-nums",
+        }}>
+          {String(index + 1).padStart(2, "0")}
+        </span>
+        <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textPrimary, letterSpacing: "-0.01em", lineHeight: 1.3 }}>
+          {rec.title}
+        </h4>
+      </div>
+      {/* Observation + Action bullets */}
+      <div style={{ paddingLeft: 46, display: "flex", flexDirection: "column", gap: 0 }}>
+        {rec.observation && (
+          <div style={{
+            display: "grid", gridTemplateColumns: "20px 1fr", gap: 10,
+            padding: "7px 0", borderTop: `1px solid ${T.borderLight}`,
+            fontSize: 14, lineHeight: 1.75, color: T.textSecondary,
+          }}>
+            <span style={{ color: T.textFaint, paddingTop: 1 }}>—</span>
+            <span>{rec.observation}</span>
+          </div>
+        )}
+        {rec.action && (
+          <div style={{
+            display: "grid", gridTemplateColumns: "20px 1fr", gap: 10,
+            padding: "7px 0", borderTop: `1px solid ${T.borderLight}`,
+            fontSize: 14, lineHeight: 1.75, color: T.textSecondary,
+          }}>
+            <span style={{ color: T.violet, fontSize: 10, paddingTop: 5 }}>▸</span>
+            <span>{rec.action}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Bullet Row ──────────────────────────────────────────────────────────────
+
+function BulletRow({ text, isLast }: { text: string; isLast: boolean }) {
+  return (
+    <li style={{
+      display: "grid", gridTemplateColumns: "20px 1fr", gap: 12,
+      padding: "10px 0", borderTop: `1px solid ${T.borderLight}`,
+      borderBottom: isLast ? `1px solid ${T.borderLight}` : "none",
+      fontSize: 14, lineHeight: 1.8, color: T.textSecondary, alignItems: "start",
+    }}>
+      <span style={{ color: T.textFaint, paddingTop: 1 }}>—</span>
+      <span>{text}</span>
+    </li>
+  )
+}
+
+// ─── Join confirmation screen ─────────────────────────────────────────────────
+
+function JoinConfirmScreen({
+  suggestions,
+  onConfirm,
+}: {
+  suggestions: JoinSuggestion[]
+  onConfirm: (confirmed: JoinSuggestion[]) => void
+}) {
+  const [included, setIncluded] = useState<Set<number>>(new Set())
+
+  function toggle(i: number) {
+    setIncluded((prev) => {
+      const next = new Set(prev)
+      next.has(i) ? next.delete(i) : next.add(i)
+      return next
+    })
+  }
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: "#ffffff",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "80px 24px",
+    }}>
+      <div style={{ width: "100%", maxWidth: 560 }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", margin: "0 0 8px", color: "#111827" }}>
+          Possible relationships detected
+        </h2>
+        <p style={{ fontSize: 14, color: "#6b7280", margin: "0 0 36px" }}>
+          These columns appear in multiple files and may be joinable. Select any to include as noted relationships in the report.
+        </p>
+        <div style={{ borderTop: "1px solid #e5e7eb", marginBottom: 32 }}>
+          {suggestions.map((s, i) => {
+            const on = included.has(i)
+            return (
+              <div key={i} onClick={() => toggle(i)} style={{
+                display: "flex", alignItems: "flex-start", gap: 16,
+                padding: "18px 0", borderBottom: "1px solid #f3f4f6", cursor: "pointer",
+              }}>
+                <div style={{
+                  width: 18, height: 18, borderRadius: 4,
+                  border: `2px solid ${on ? "#111827" : "#d1d5db"}`,
+                  background: on ? "#111827" : "transparent",
+                  flexShrink: 0, marginTop: 2,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {on && <span style={{ color: "#fff", fontSize: 11, lineHeight: 1 }}>✓</span>}
+                </div>
+                <div>
+                  <p style={{ margin: "0 0 3px", fontSize: 14, fontWeight: 600, color: "#111827" }}>
+                    {s.dataset_a} · <span style={{ fontFamily: "monospace" }}>{s.column_a}</span>
+                    {" → "}{s.dataset_b} · <span style={{ fontFamily: "monospace" }}>{s.column_b}</span>
+                  </p>
+                  <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>{s.reason}</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#9ca3af" }}>Confidence: {Math.round(s.confidence * 100)}%</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <button
+          onClick={() => onConfirm(suggestions.filter((_, i) => included.has(i)))}
+          style={{
+            padding: "10px 28px", background: "#111827", color: "#ffffff",
+            border: "none", borderRadius: 7, fontSize: 14, fontWeight: 600,
+            cursor: "pointer", letterSpacing: "-0.01em",
+          }}
+        >
+          Continue to Report →
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Layout components ───────────────────────────────────────────────────────
+
+function JoinStats({ insight, nameA, nameB }: { insight: JoinInsight; nameA: string; nameB: string }) {
+  const rows: [string, string, string][] = [
+    ["Matched", insight.matched_rows.toLocaleString(), `${(insight.match_pct * 100).toFixed(1)}% of smaller dataset`],
+    ["Only in " + nameA, insight.left_only_rows.toLocaleString(), "no match in " + nameB],
+    ["Only in " + nameB, insight.right_only_rows.toLocaleString(), "no match in " + nameA],
+  ]
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {rows.map(([label, value, note]) => (
+        <div key={label} style={{ display: "grid", gridTemplateColumns: "160px 80px 1fr", fontSize: 12, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
+          <span style={{ color: T.textFaint }}>{label}</span>
+          <span style={{ color: T.textSecondary, fontWeight: 500 }}>{value}</span>
+          <span style={{ color: T.textFaint }}>{note}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: T.textFaint }}>
+      {children}
+    </span>
+  )
+}
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 64 }}>
-      <div style={{
-        borderTop: `1px solid ${T.divider}`,
-        paddingTop: 20,
-        marginBottom: 28,
-      }}>
-        <span style={{
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          color: T.textFaint,
-        }}>
-          {label}
-        </span>
+      <div style={{ borderTop: `1px solid ${T.divider}`, paddingTop: 20, marginBottom: 28 }}>
+        <SectionLabel>{label}</SectionLabel>
       </div>
       {children}
     </div>
   )
 }
 
-function Badge({ children, background, color }: {
-  children: React.ReactNode
-  background: string
-  color: string
-}) {
+function Badge({ children, background, color }: { children: React.ReactNode; background: string; color: string }) {
   return (
     <span style={{
-      display: "inline-block",
-      padding: "2px 6px",
-      borderRadius: 3,
-      fontSize: 11,
-      fontWeight: 500,
-      letterSpacing: "0.01em",
-      background,
-      color,
-      whiteSpace: "nowrap",
+      display: "inline-block", padding: "2px 6px", borderRadius: 3,
+      fontSize: 11, fontWeight: 500, letterSpacing: "0.01em",
+      background, color, whiteSpace: "nowrap",
     }}>
       {children}
     </span>
@@ -361,7 +564,7 @@ function Badge({ children, background, color }: {
 function InsightChart({ chart }: { chart: ChartSpec }) {
   const isLine = chart.type === "line"
   return (
-    <div style={{ marginTop: 24 }}>
+    <div style={{ marginBottom: 4 }}>
       <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 500, color: T.textFaint, letterSpacing: "0.02em" }}>
         {chart.title}
       </p>
@@ -377,16 +580,13 @@ function InsightChart({ chart }: { chart: ChartSpec }) {
         layout={{
           xaxis: {
             title: { text: chart.x_label, font: { size: 11, color: T.textFaint } },
-            tickangle: -30,
-            tickfont: { size: 11, color: T.textMuted },
-            gridcolor: T.borderLight,
-            linecolor: T.divider,
+            tickangle: -30, tickfont: { size: 11, color: T.textMuted },
+            gridcolor: T.borderLight, linecolor: T.divider,
           },
           yaxis: {
             title: { text: chart.y_label, font: { size: 11, color: T.textFaint } },
             tickfont: { size: 11, color: T.textMuted },
-            gridcolor: T.borderLight,
-            linecolor: T.divider,
+            gridcolor: T.borderLight, linecolor: T.divider,
           },
           margin: { t: 4, r: 12, b: 60, l: 54 },
           height: 220,
