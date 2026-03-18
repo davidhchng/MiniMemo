@@ -64,6 +64,7 @@ class InsightBlock(BaseModel):
 class ReportSection(BaseModel):
     title: str
     content: str
+    bullets: list[str] = []  # optional scannable items (e.g. recommendations)
 
 
 class AnalysisResponse(BaseModel):

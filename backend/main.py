@@ -20,9 +20,10 @@ from models import AnalysisResponse, DatasetSummary, InsightBlock, ReportSection
 from processing import profile_dataframe
 from report.charts import bar_spec, histogram_spec, line_spec
 from report.llm_client import get_llm_client
-from report.narrative import rewrite_insight_bullets
+from report.narrative import get_narrative_service
 
 load_dotenv()
+_narrative_svc = get_narrative_service()
 _llm_client = get_llm_client()
 
 app = FastAPI(title="MiniMemo API", version="0.1.0")
@@ -80,14 +81,17 @@ async def analyze(file: UploadFile = File(...)):
     if len(df) == 0:
         raise HTTPException(status_code=422, detail="The uploaded file has no rows.")
 
-    dataset  = profile_dataframe(df, filename)
+    dataset  = profile_dataframe(df, filename, llm_client=_llm_client)
     insights = _build_insights(dataset, df)
     insights = _apply_narrative_rewrite(insights)
+
+    key_block   = next((b for b in insights if b.title == "Key Insights"), None)
+    key_bullets = key_block.bullets if key_block else []
 
     return AnalysisResponse(
         dataset=dataset,
         insights=insights,
-        report_sections=_build_report_sections(dataset),
+        report_sections=_build_report_sections(dataset, df, key_bullets),
     )
 
 
@@ -109,7 +113,7 @@ def _apply_narrative_rewrite(insights: list[InsightBlock]) -> list[InsightBlock]
         return insights
 
     original = insights[key_idx]
-    rewritten = rewrite_insight_bullets(_llm_client, original.bullets)
+    rewritten = _narrative_svc.rewrite_key_insights(original.bullets)
     if not rewritten:
         return insights
 
@@ -529,47 +533,196 @@ def _dim_breakdown_insight(
 
 
 # ---------------------------------------------------------------------------
-# Report sections
+# Report sections — deterministic narrative
 # ---------------------------------------------------------------------------
 
-def _build_report_sections(dataset: DatasetSummary) -> list[ReportSection]:
-    measure_names = ", ".join(c.name for c in _measures(dataset)) or "none"
-    dim_names     = ", ".join(c.name for c in _dimensions(dataset)) or "none"
-    time_names    = ", ".join(c.name for c in _time_dims(dataset)) or "none"
-
-    col_summary = f"measures: {measure_names}; dimensions: {dim_names}; time: {time_names}"
+def _build_report_sections(
+    dataset: DatasetSummary,
+    df: pd.DataFrame,
+    key_bullets: list[str],
+) -> list[ReportSection]:
+    ms   = _measures(dataset)
+    dims = _dimensions(dataset)
+    tcs  = _time_dims(dataset)
+    excl = _excluded(dataset)
 
     return [
         ReportSection(
             title="Project Background",
-            content=(
-                "TODO (Phase 4 — AI layer): This section will be generated from the "
-                "user's stated analysis objective and domain context notes. It will describe "
-                "the dataset origin, the business question being answered, and the scope of analysis."
-            ),
+            content=_section_project_background(),
         ),
         ReportSection(
             title="Executive Summary",
-            content=(
-                f"Dataset: {dataset.filename} — {dataset.row_count:,} rows, {dataset.col_count} columns. "
-                f"Column roles: {col_summary}. "
-                "TODO (Phase 4 — AI layer): Key findings and top-line conclusions will appear here."
-            ),
+            content=_section_executive_summary(dataset, ms, dims, tcs, key_bullets),
         ),
         ReportSection(
             title="Recommendations",
-            content=(
-                "TODO (Phase 4 — AI layer): Actionable recommendations will be generated "
-                "from detected patterns, user objectives, and domain context."
-            ),
+            content="Based on the detected patterns, the following actions are recommended.",
+            bullets=_section_recommendations(dataset, df, ms, dims, tcs),
         ),
         ReportSection(
             title="Assumptions & Limitations",
-            content=(
-                "Phase 1 limitations: single-file analysis only; no join detection; "
-                "no chart generation; no AI-generated narrative. "
-                "Type inference is heuristic and may misclassify edge-case columns. "
-                "Multi-table joins, Plotly charts, and LLM narrative are planned for future phases."
-            ),
+            content=_section_limitations(dataset, excl),
         ),
     ]
+
+
+def _section_project_background() -> str:
+    return (
+        "This section is reserved for context about the dataset's origin, the business "
+        "question being addressed, and relevant domain knowledge. Providing this context "
+        "enables the findings to be interpreted correctly and will be used by the AI "
+        "narrative layer to generate more targeted analysis in a future version."
+    )
+
+
+def _section_executive_summary(
+    dataset: DatasetSummary,
+    measures: list,
+    dimensions: list,
+    time_cols: list,
+    key_bullets: list[str],
+) -> str:
+    parts: list[str] = []
+
+    # Sentence 1: dataset size
+    parts.append(
+        f"This dataset ({dataset.filename}) contains {dataset.row_count:,} records "
+        f"across {dataset.col_count} columns."
+    )
+
+    # Sentence 2: column roles
+    role_clauses: list[str] = []
+    if measures:
+        names = ", ".join(c.name for c in measures[:3])
+        role_clauses.append(f"{len(measures)} numeric measure{'s' if len(measures) > 1 else ''} ({names})")
+    if dimensions:
+        names = ", ".join(c.name for c in dimensions[:3])
+        role_clauses.append(f"{len(dimensions)} categorical dimension{'s' if len(dimensions) > 1 else ''} ({names})")
+    if time_cols:
+        names = ", ".join(c.name for c in time_cols)
+        role_clauses.append(f"{len(time_cols)} time column{'s' if len(time_cols) > 1 else ''} ({names})")
+    if role_clauses:
+        parts.append("It includes " + _join_natural(role_clauses) + ".")
+
+    # Sentence 3: top finding (first key insight bullet, if any)
+    if key_bullets:
+        parts.append(key_bullets[0])
+
+    return " ".join(parts)
+
+
+def _section_recommendations(
+    dataset: DatasetSummary,
+    df: pd.DataFrame,
+    measures: list,
+    dimensions: list,
+    time_cols: list,
+) -> list[str]:
+    recs: list[str] = []
+
+    primary = _pick_primary_measure(measures, df) if measures else None
+    s = primary.numeric_stats if primary else None
+
+    if s and s.std > 0 and s.mean != 0:
+        skew_ratio = (s.mean - s.median) / s.std
+        cv = s.std / abs(s.mean)
+
+        if abs(skew_ratio) > _SKEW_STD_RATIO:
+            direction = "right" if skew_ratio > 0 else "left"
+            tail = "high-value outliers are inflating" if skew_ratio > 0 else "low-value outliers are depressing"
+            recs.append(
+                f"{primary.name} is {direction}-skewed ({tail} the average). "
+                "Use the median rather than the mean as the primary central estimate for more accurate reporting."
+            )
+
+        if cv > _HIGH_CV_THRESHOLD and dimensions:
+            recs.append(
+                f"{primary.name} shows high variability (CV {cv:.2f}). "
+                f"Segment-level analysis — particularly by {dimensions[0].name} — "
+                "is likely to surface meaningful sub-group differences obscured by the overall average."
+            )
+
+    if time_cols and measures and primary:
+        try:
+            gm = float(df[primary.name].mean())
+        except Exception:
+            gm = None
+        if gm:
+            trend_stmt = _time_trend_statement(time_cols[0], primary.name, gm, df)
+            if trend_stmt:
+                direction = "upward" if "upward" in trend_stmt else "downward"
+                recs.append(
+                    f"An {direction} trend is present in {primary.name} over time. "
+                    f"Decomposing by {time_cols[0].name} — for example, comparing period-over-period averages — "
+                    "will help distinguish sustained trend from short-term variation."
+                )
+
+    if len(dimensions) >= 2:
+        d1, d2 = dimensions[0].name, dimensions[1].name
+        recs.append(
+            f"With {len(dimensions)} grouping dimensions available ({d1}, {d2}"
+            f"{', …' if len(dimensions) > 2 else ''}), cross-dimensional analysis "
+            "may reveal interaction effects not visible in single-dimension breakdowns."
+        )
+
+    high_null = [c for c in dataset.columns if c.null_pct > 0.10]
+    if high_null:
+        names = ", ".join(c.name for c in high_null[:3])
+        recs.append(
+            f"Column(s) with notable missing data ({names}) should be reviewed for "
+            "imputation or exclusion before use in downstream aggregations or models."
+        )
+
+    if not recs:
+        recs.append(
+            "No significant structural issues were detected. "
+            "The dataset appears suitable for the analysis patterns identified above."
+        )
+
+    return recs[:5]
+
+
+def _section_limitations(dataset: DatasetSummary, excluded: list) -> str:
+    parts: list[str] = [
+        "Analysis covers a single uploaded file; findings reflect patterns in the "
+        "provided sample and should not be generalized without validating against a "
+        "broader or more representative population.",
+
+        "Column type classification is heuristic — review the Data Structure table "
+        "to confirm column roles, particularly for columns with ambiguous formatting "
+        "(e.g. numeric-looking strings, inconsistent date formats).",
+    ]
+
+    high_null = [c for c in dataset.columns if c.null_pct > 0.05]
+    if high_null:
+        names = ", ".join(c.name for c in high_null[:3])
+        parts.append(
+            f"Aggregated statistics exclude null values. "
+            f"Column(s) with notable missing data ({names}) may underrepresent "
+            "certain subgroups in computed averages."
+        )
+
+    if excluded:
+        names = ", ".join(c.name for c in excluded[:3])
+        parts.append(
+            f"Column(s) classified as identifiers or contact data ({names}) "
+            "were excluded from aggregation and grouping."
+        )
+
+    parts.append(
+        "This version does not perform multi-table joins, statistical significance "
+        "testing, or causal inference."
+    )
+
+    return " ".join(parts)
+
+
+def _join_natural(items: list[str]) -> str:
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"

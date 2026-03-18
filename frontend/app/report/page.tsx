@@ -9,9 +9,25 @@ import type { ChartSpec, ColumnSummary, InsightBlock, ReportSection } from "../.
 
 const Plot = dynamic<PlotParams>(() => import("react-plotly.js"), { ssr: false })
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
+// ─── Design tokens ──────────────────────────────────────────────────────────
+const T = {
+  pageBg:        "#eef0f3",
+  cardBg:        "#ffffff",
+  cardBorder:    "#e2e8f0",
+  cardShadow:    "0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04)",
+  violet:        "#7c3aed",
+  violetLight:   "#f5f3ff",
+  violetBorder:  "#c4b5fd",
+  violetMid:     "#5b21b6",
+  textPrimary:   "#0f172a",
+  textSecondary: "#374151",
+  textMuted:     "#64748b",
+  textFaint:     "#94a3b8",
+  borderLight:   "#f1f5f9",
+  tableZebra:    "#f8f9fa",
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function ReportPage() {
   const report = useReportStore((s) => s.report)
@@ -29,33 +45,33 @@ export default function ReportPage() {
   const otherInsights = insights.filter((b) => b.title !== "Key Insights")
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f8f9fb" }}>
+    <div style={{ minHeight: "100vh", background: T.pageBg }}>
 
-      {/* ── Nav bar ─────────────────────────────────────────────────────── */}
+      {/* Nav */}
       <nav style={{
-        background: "#fff",
-        borderBottom: "1px solid #e2e8f0",
+        background: T.cardBg,
+        borderBottom: `1px solid ${T.cardBorder}`,
         height: 52,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "0 32px",
+        padding: "0 40px",
         position: "sticky",
         top: 0,
         zIndex: 10,
       }}>
-        <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: "-0.01em", color: "#0f172a" }}>
+        <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: "-0.01em", color: T.textPrimary }}>
           MiniMemo
         </span>
         <button
           onClick={() => { clear(); router.push("/") }}
           style={{
             background: "none",
-            border: "1px solid #e2e8f0",
+            border: `1px solid ${T.cardBorder}`,
             borderRadius: 6,
-            padding: "5px 12px",
+            padding: "5px 13px",
             fontSize: 13,
-            color: "#475569",
+            color: T.textMuted,
             cursor: "pointer",
             fontWeight: 500,
           }}
@@ -64,65 +80,97 @@ export default function ReportPage() {
         </button>
       </nav>
 
-      {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "36px 32px 0" }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 6px", color: "#0f172a" }}>
-          Analytics Report
-        </h1>
-        <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 32px", display: "flex", gap: 0, alignItems: "center" }}>
-          {dataset.filename}
-          <Dot />
-          {dataset.row_count.toLocaleString()} rows
-          <Dot />
-          {dataset.col_count} columns
-        </p>
+      {/* Page header */}
+      <div style={{
+        background: T.cardBg,
+        borderBottom: `1px solid ${T.cardBorder}`,
+        padding: "32px 40px",
+      }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <h1 style={{
+            fontSize: 26,
+            fontWeight: 700,
+            letterSpacing: "-0.025em",
+            margin: "0 0 8px",
+            color: T.textPrimary,
+          }}>
+            Analytics Report
+          </h1>
+          <p style={{
+            fontSize: 13,
+            color: T.textMuted,
+            margin: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 0,
+          }}>
+            <span style={{ fontWeight: 500, color: T.textSecondary }}>{dataset.filename}</span>
+            <Sep />
+            {dataset.row_count.toLocaleString()} rows
+            <Sep />
+            {dataset.col_count} columns
+          </p>
+        </div>
       </div>
 
-      {/* ── Body ─────────────────────────────────────────────────────────── */}
-      <main style={{ maxWidth: 960, margin: "0 auto", padding: "0 32px 72px" }}>
+      {/* Body */}
+      <main style={{ maxWidth: 960, margin: "0 auto", padding: "36px 40px 80px" }}>
 
-        {/* Key Insights — featured accent card */}
+        {/* Key Insights — self-contained accent card */}
         {keyInsights && (
-          <PageBlock label="Key Insights">
+          <Section label="Key Insights">
             <div style={{
-              background: "#faf9ff",
-              border: "1px solid #ddd6fe",
-              borderLeft: "3px solid #7c3aed",
+              background: T.cardBg,
+              border: `1px solid ${T.violetBorder}`,
               borderRadius: 10,
-              padding: "18px 22px",
+              boxShadow: T.cardShadow,
+              overflow: "hidden",
             }}>
+              {/* Card header strip */}
+              <div style={{
+                background: T.violetLight,
+                borderBottom: `1px solid ${T.violetBorder}`,
+                padding: "11px 22px",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}>
+                <span style={{ color: T.violet, fontSize: 12, lineHeight: 1 }}>◆</span>
+                <span style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                  color: T.violetMid,
+                }}>
+                  Key Insights
+                </span>
+              </div>
+              {/* Bullets */}
               <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
                 {keyInsights.bullets.map((b, i) => (
                   <li
                     key={i}
                     style={{
-                      display: "flex",
-                      gap: 10,
+                      padding: "14px 22px",
                       fontSize: 14,
                       lineHeight: 1.65,
-                      color: "#1e1b4b",
-                      paddingBottom: i < keyInsights.bullets.length - 1 ? 11 : 0,
-                      marginBottom: i < keyInsights.bullets.length - 1 ? 11 : 0,
-                      borderBottom: i < keyInsights.bullets.length - 1 ? "1px solid #ede9fe" : "none",
+                      color: T.textSecondary,
+                      borderBottom: i < keyInsights.bullets.length - 1
+                        ? `1px solid ${T.borderLight}` : "none",
                     }}
                   >
-                    <span style={{ color: "#7c3aed", flexShrink: 0, lineHeight: 1.65, fontSize: 12 }}>◆</span>
                     {b}
                   </li>
                 ))}
               </ul>
             </div>
-          </PageBlock>
+          </Section>
         )}
 
         {/* Data Structure */}
-        <PageBlock label="Data Structure">
+        <Section label="Data Structure">
           <Card noPad>
-            <div style={{ padding: "12px 18px 11px", borderBottom: "1px solid #f1f5f9" }}>
-              <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>
-                {dataset.row_count.toLocaleString()} rows · {dataset.col_count} columns
-              </span>
-            </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
@@ -130,13 +178,13 @@ export default function ReportPage() {
                     {["Column", "Type", "Flags", "Nulls", "Unique", "Mean", "Min", "Max"].map((h) => (
                       <th key={h} style={{
                         textAlign: "left",
-                        padding: "8px 14px",
+                        padding: "10px 16px",
                         fontSize: 11,
                         fontWeight: 600,
                         letterSpacing: "0.05em",
                         textTransform: "uppercase",
-                        color: "#94a3b8",
-                        borderBottom: "1px solid #e2e8f0",
+                        color: T.textFaint,
+                        borderBottom: `1px solid ${T.cardBorder}`,
                         whiteSpace: "nowrap",
                       }}>
                         {h}
@@ -146,36 +194,42 @@ export default function ReportPage() {
                 </thead>
                 <tbody>
                   {dataset.columns.map((col: ColumnSummary, i) => (
-                    <tr key={col.name} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff" }}>
-                      <td style={tdStyle}><span style={{ fontWeight: 500, color: "#0f172a" }}>{col.name}</span></td>
-                      <td style={tdStyle}>
-                        <Badge {...dtypeBadgeStyle(col.dtype)}>{col.dtype}</Badge>
+                    <tr key={col.name} style={{
+                      background: i % 2 === 1 ? T.tableZebra : T.cardBg,
+                    }}>
+                      <td style={td}>
+                        <span style={{ fontWeight: 600, color: T.textPrimary, fontSize: 13 }}>
+                          {col.name}
+                        </span>
                       </td>
-                      <td style={tdStyle}>
+                      <td style={td}>
+                        <Badge {...dtypeStyle(col.dtype)}>{col.dtype}</Badge>
+                      </td>
+                      <td style={td}>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
                           {col.flags.length > 0
                             ? col.flags.map((f) => (
-                                <Badge key={f} {...flagBadgeStyle(f)}>
+                                <Badge key={f} {...flagStyle(f)}>
                                   {f.replace(/_/g, "\u00a0")}
                                 </Badge>
                               ))
-                            : <span style={{ color: "#d1d5db" }}>—</span>
+                            : <span style={{ color: T.cardBorder }}>—</span>
                           }
                         </div>
                       </td>
-                      <td style={{ ...tdStyle, color: "#475569", fontVariantNumeric: "tabular-nums" }}>
+                      <td style={{ ...td, color: T.textMuted, fontVariantNumeric: "tabular-nums" }}>
                         {(col.null_pct * 100).toFixed(1)}%
                       </td>
-                      <td style={{ ...tdStyle, color: "#475569" }}>
+                      <td style={{ ...td, color: T.textMuted }}>
                         {col.unique_count.toLocaleString()}
                       </td>
-                      <td style={{ ...tdStyle, color: "#475569" }}>
+                      <td style={{ ...td, color: T.textMuted }}>
                         {col.numeric_stats?.mean ?? <Dash />}
                       </td>
-                      <td style={{ ...tdStyle, color: "#475569" }}>
+                      <td style={{ ...td, color: T.textMuted }}>
                         {col.numeric_stats?.min ?? <Dash />}
                       </td>
-                      <td style={{ ...tdStyle, color: "#475569" }}>
+                      <td style={{ ...td, color: T.textMuted }}>
                         {col.numeric_stats?.max ?? <Dash />}
                       </td>
                     </tr>
@@ -184,44 +238,78 @@ export default function ReportPage() {
               </table>
             </div>
           </Card>
-        </PageBlock>
+        </Section>
 
         {/* Report sections */}
         {report_sections.map((section: ReportSection) => (
-          <PageBlock key={section.title} label={section.title}>
+          <Section key={section.title} label={section.title}>
             <Card>
-              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.75, color: "#475569" }}>
+              <p style={{
+                margin: section.bullets.length > 0 ? "0 0 14px" : 0,
+                fontSize: 14,
+                lineHeight: 1.8,
+                color: T.textMuted,
+              }}>
                 {section.content}
               </p>
+              {section.bullets.length > 0 && (
+                <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
+                  {section.bullets.map((b, i) => (
+                    <li key={i} style={{
+                      display: "flex",
+                      gap: 10,
+                      padding: "9px 0",
+                      fontSize: 14,
+                      lineHeight: 1.65,
+                      color: T.textSecondary,
+                      borderTop: i > 0 ? `1px solid ${T.borderLight}` : "none",
+                    }}>
+                      <span style={{ color: T.textFaint, flexShrink: 0, lineHeight: 1.65 }}>·</span>
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Card>
-          </PageBlock>
+          </Section>
         ))}
 
-        {/* Insight cards */}
+        {/* Analysis cards */}
         {otherInsights.length > 0 && (
-          <PageBlock label="Analysis">
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Section label="Analysis">
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {otherInsights.map((insight: InsightBlock) => (
                 <Card key={insight.title}>
-                  <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em" }}>
+                  <p style={{
+                    margin: "0 0 2px",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    letterSpacing: "-0.01em",
+                    color: T.textPrimary,
+                  }}>
                     {insight.title}
                   </p>
-                  <p style={{ margin: "0 0 10px", fontSize: 13, color: "#64748b", lineHeight: 1.55 }}>
+                  <p style={{
+                    margin: "0 0 12px",
+                    fontSize: 13,
+                    color: T.textMuted,
+                    lineHeight: 1.6,
+                  }}>
                     {insight.summary}
                   </p>
-                  <ul style={{ margin: 0, paddingLeft: 16, color: "#374151", fontSize: 13, lineHeight: 1.85 }}>
+                  <ul style={{ margin: 0, paddingLeft: 16, color: T.textSecondary, fontSize: 13, lineHeight: 1.9 }}>
                     {insight.bullets.map((b, i) => <li key={i}>{b}</li>)}
                   </ul>
                   {insight.chart && <InsightChart chart={insight.chart} />}
                   {insight.caveat && (
-                    <p style={{ margin: "12px 0 0", fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>
+                    <p style={{ margin: "12px 0 0", fontSize: 12, color: T.textFaint, fontStyle: "italic" }}>
                       {insight.caveat}
                     </p>
                   )}
                 </Card>
               ))}
             </div>
-          </PageBlock>
+          </Section>
         )}
 
       </main>
@@ -229,23 +317,29 @@ export default function ReportPage() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Layout components
-// ---------------------------------------------------------------------------
+// ─── Layout components ───────────────────────────────────────────────────────
 
-function PageBlock({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 28 }}>
-      <p style={{
-        fontSize: 11,
-        fontWeight: 600,
-        letterSpacing: "0.07em",
-        textTransform: "uppercase",
-        color: "#94a3b8",
-        margin: "0 0 9px",
+    <div style={{ marginBottom: 32 }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 10,
       }}>
-        {label}
-      </p>
+        <span style={{
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: "0.07em",
+          textTransform: "uppercase",
+          color: T.textMuted,
+          whiteSpace: "nowrap",
+        }}>
+          {label}
+        </span>
+        <div style={{ flex: 1, height: 1, background: T.borderLight }} />
+      </div>
       {children}
     </div>
   )
@@ -254,23 +348,19 @@ function PageBlock({ label, children }: { label: string; children: React.ReactNo
 function Card({ children, noPad }: { children: React.ReactNode; noPad?: boolean }) {
   return (
     <div style={{
-      background: "#fff",
-      border: "1px solid #e2e8f0",
+      background: T.cardBg,
+      border: `1px solid ${T.cardBorder}`,
       borderRadius: 10,
-      boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+      boxShadow: T.cardShadow,
       overflow: "hidden",
-      ...(noPad ? {} : { padding: "18px 22px" }),
+      ...(noPad ? {} : { padding: "20px 24px" }),
     }}>
       {children}
     </div>
   )
 }
 
-function Badge({
-  children,
-  background,
-  color,
-}: {
+function Badge({ children, background, color }: {
   children: React.ReactNode
   background: string
   color: string
@@ -278,11 +368,11 @@ function Badge({
   return (
     <span style={{
       display: "inline-block",
-      padding: "2px 7px",
+      padding: "2px 6px",
       borderRadius: 4,
       fontSize: 11,
-      fontWeight: 600,
-      letterSpacing: "0.02em",
+      fontWeight: 500,
+      letterSpacing: "0.01em",
       background,
       color,
       whiteSpace: "nowrap",
@@ -295,34 +385,39 @@ function Badge({
 function InsightChart({ chart }: { chart: ChartSpec }) {
   const isLine = chart.type === "line"
   return (
-    <div style={{ marginTop: 18, borderTop: "1px solid #f1f5f9", paddingTop: 16 }}>
+    <div style={{ marginTop: 16, borderTop: `1px solid ${T.borderLight}`, paddingTop: 14 }}>
+      <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 500, color: T.textFaint }}>
+        {chart.title}
+      </p>
       <Plot
         data={[{
           type: isLine ? "scatter" : "bar",
           mode: isLine ? "lines+markers" : undefined,
           x: chart.x,
           y: chart.y,
-          marker: { color: "#6366f1", opacity: 0.85 },
+          marker: { color: "#6366f1", opacity: 0.9 },
           line: isLine ? { color: "#6366f1", width: 2 } : undefined,
         }]}
         layout={{
           xaxis: {
-            title: { text: chart.x_label, font: { size: 11, color: "#94a3b8" } },
+            title: { text: chart.x_label, font: { size: 11, color: T.textFaint } },
             tickangle: -30,
-            tickfont: { size: 11, color: "#64748b" },
-            gridcolor: "#f1f5f9",
+            tickfont: { size: 11, color: T.textMuted },
+            gridcolor: T.borderLight,
+            linecolor: T.cardBorder,
           },
           yaxis: {
-            title: { text: chart.y_label, font: { size: 11, color: "#94a3b8" } },
-            tickfont: { size: 11, color: "#64748b" },
-            gridcolor: "#f1f5f9",
+            title: { text: chart.y_label, font: { size: 11, color: T.textFaint } },
+            tickfont: { size: 11, color: T.textMuted },
+            gridcolor: T.borderLight,
+            linecolor: T.cardBorder,
           },
-          margin: { t: 8, r: 12, b: 64, l: 56 },
+          margin: { t: 4, r: 12, b: 60, l: 54 },
           height: 240,
           paper_bgcolor: "transparent",
-          plot_bgcolor: "#fafbfc",
+          plot_bgcolor: "#f8f9fb",
           font: { family: "Inter, ui-sans-serif, system-ui, sans-serif", size: 12 },
-          bargap: 0.35,
+          bargap: 0.4,
         }}
         config={{ displayModeBar: false, responsive: true }}
         style={{ width: "100%" }}
@@ -331,38 +426,36 @@ function InsightChart({ chart }: { chart: ChartSpec }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Small helpers
-// ---------------------------------------------------------------------------
+// ─── Micro-components ────────────────────────────────────────────────────────
 
-function Dot() {
-  return <span style={{ margin: "0 8px", color: "#d1d5db" }}>·</span>
+function Sep() {
+  return <span style={{ margin: "0 10px", color: T.cardBorder }}>·</span>
 }
 
 function Dash() {
-  return <span style={{ color: "#d1d5db" }}>—</span>
+  return <span style={{ color: T.cardBorder }}>—</span>
 }
 
-const tdStyle: React.CSSProperties = {
-  padding: "9px 14px",
-  borderBottom: "1px solid #f1f5f9",
+// ─── Shared styles ───────────────────────────────────────────────────────────
+
+const td: React.CSSProperties = {
+  padding: "11px 16px",
+  borderBottom: `1px solid ${T.borderLight}`,
   verticalAlign: "middle",
 }
 
-// ---------------------------------------------------------------------------
-// Badge style maps
-// ---------------------------------------------------------------------------
+// ─── Badge maps ──────────────────────────────────────────────────────────────
 
-function dtypeBadgeStyle(dtype: ColumnSummary["dtype"]) {
+function dtypeStyle(dtype: ColumnSummary["dtype"]) {
   const map: Record<ColumnSummary["dtype"], { background: string; color: string }> = {
-    numeric:  { background: "#dbeafe", color: "#1d4ed8" },
-    datetime: { background: "#dcfce7", color: "#15803d" },
+    numeric:  { background: "#dbeafe", color: "#1e40af" },
+    datetime: { background: "#dcfce7", color: "#166534" },
     string:   { background: "#f1f5f9", color: "#475569" },
   }
   return map[dtype]
 }
 
-function flagBadgeStyle(flag: string) {
+function flagStyle(flag: string) {
   const map: Record<string, { background: string; color: string }> = {
     email:            { background: "#fce7f3", color: "#9d174d" },
     url_like:         { background: "#e0f2fe", color: "#0369a1" },

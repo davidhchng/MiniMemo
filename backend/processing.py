@@ -19,6 +19,8 @@ _NAME_TOKENS = {"name", "first", "last", "fname", "lname", "fullname", "surname"
 _LOCATION_TOKENS = {"country", "city", "state", "region", "location", "province", "address", "zip", "postal"}
 _ID_NAME_TOKENS = {"id", "key", "idx", "index", "seq", "num", "no", "number", "ref", "code"}
 
+_EXCLUSION_FLAGS = frozenset({"email", "url_like", "phone_like", "id_like"})
+
 
 # ---------------------------------------------------------------------------
 # Physical type inference (3-way only)
@@ -200,9 +202,74 @@ def profile_column(series: pd.Series, row_count: int) -> ColumnSummary:
     )
 
 
-def profile_dataframe(df: pd.DataFrame, filename: str) -> DatasetSummary:
+def _apply_ai_dtype(col: ColumnSummary, ai_dtype: str, series: pd.Series) -> ColumnSummary:
+    """Apply an AI-suggested dtype refinement, validating before accepting."""
+    if ai_dtype == "datetime":
+        if _looks_like_datetime(series):
+            return col.model_copy(update={"dtype": "datetime", "flags": [], "top_categories": None})
+    elif ai_dtype == "email":
+        return col.model_copy(update={"flags": ["email"], "top_categories": None})
+    elif ai_dtype == "identifier":
+        return col.model_copy(update={"flags": ["id_like"], "top_categories": None})
+    elif ai_dtype in ("categorical", "boolean"):
+        flags = [f for f in col.flags if f != "high_cardinality"]
+        if "low_cardinality" not in flags:
+            flags.append("low_cardinality")
+        top_cats = _compute_top_categories(series)
+        return col.model_copy(update={"flags": flags, "top_categories": top_cats})
+    elif ai_dtype == "text":
+        flags = [f for f in col.flags if f != "low_cardinality"]
+        if "high_cardinality" not in flags:
+            flags.append("high_cardinality")
+        return col.model_copy(update={"flags": flags, "top_categories": None})
+    return col
+
+
+def _refine_with_ai(df: pd.DataFrame, columns: list[ColumnSummary], llm_client) -> list[ColumnSummary]:
+    """Post-processing pass: ask LLM to refine dtypes for ambiguous string columns.
+
+    Only sends string columns that don't already have a definitive exclusion flag.
+    If the LLM call fails or returns no usable results, returns the heuristic columns unchanged.
+    """
+    from report.dtype_classifier import classify_columns_with_ai
+
+    ambiguous = [
+        col for col in columns
+        if col.dtype == "string" and not (_EXCLUSION_FLAGS & set(col.flags))
+    ]
+    if not ambiguous:
+        return columns
+
+    non_null_counts = {col.name: int(df[col.name].notna().sum()) for col in ambiguous}
+    payloads = [
+        {
+            "name": col.name,
+            "heuristic_dtype": col.dtype,
+            "sample_values": col.sample_values,
+            "null_pct": col.null_pct,
+            "unique_pct": round(col.unique_count / max(non_null_counts[col.name], 1), 4),
+        }
+        for col in ambiguous
+    ]
+
+    refined = classify_columns_with_ai(llm_client, payloads)
+    if not refined:
+        return columns
+
+    col_by_name = {col.name: col for col in columns}
+    for col_name, ai_dtype in refined.items():
+        if col_name in col_by_name:
+            col_by_name[col_name] = _apply_ai_dtype(col_by_name[col_name], ai_dtype, df[col_name])
+
+    return [col_by_name[col.name] for col in columns]
+
+
+def profile_dataframe(df: pd.DataFrame, filename: str, llm_client=None) -> DatasetSummary:
     row_count = len(df)
     columns = [profile_column(df[col], row_count) for col in df.columns]
+
+    if llm_client is not None:
+        columns = _refine_with_ai(df, columns, llm_client)
 
     return DatasetSummary(
         filename=filename,

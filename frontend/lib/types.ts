@@ -56,6 +56,7 @@ export interface InsightBlock {
 export interface ReportSection {
   title: string
   content: string
+  bullets: string[]
 }
 
 export interface AnalysisResponse {

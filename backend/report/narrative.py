@@ -1,55 +1,90 @@
 """
-AI narrative layer — presentation only.
+Narrative service — presentation layer only.
 
-Takes pre-computed deterministic insight bullets and rewrites them for
-clarity and professional tone. No statistics are computed here.
+Architecture
+------------
+NarrativeService is a Protocol with two implementations:
+  - PassthroughNarrativeService  — deterministic default, returns bullets unchanged
+  - LLMNarrativeService          — rewrites bullets via LLM for better phrasing
 
-Contract:
-- Input:  list of plain-English insight strings (from deterministic layer)
-- Output: same-length list of rewritten strings, or None on any failure
-- Caller must fall back to original bullets when None is returned
+get_narrative_service() returns the appropriate implementation based on
+whether OPENAI_API_KEY is set. main.py depends only on the Protocol — swapping
+to a different provider requires no changes outside this file.
 """
 
 from __future__ import annotations
 import json
-from report.llm_client import LLMClient
-
-_SYSTEM_PROMPT = (
-    "You are a data analyst writing a concise insights summary. "
-    "You will receive a JSON array of pre-computed analytical findings. "
-    "Rewrite each one as a clear, professional, single sentence.\n\n"
-    "Rules:\n"
-    "- Preserve every number and percentage exactly as given\n"
-    "- Do not add new information or invent findings\n"
-    "- Return exactly one output string per input string\n"
-    "- Write in active voice, present tense\n"
-    "- Return ONLY a JSON array of strings — no other text, no markdown"
-)
+import os
+from typing import Protocol, runtime_checkable
 
 
-def rewrite_insight_bullets(
-    client: LLMClient,
-    bullets: list[str],
-) -> list[str] | None:
-    """Rewrite deterministic bullets for clarity. Returns None on any failure."""
-    if not bullets:
+@runtime_checkable
+class NarrativeService(Protocol):
+    def rewrite_key_insights(self, bullets: list[str]) -> list[str] | None:
+        """Return rewritten bullets, or None to keep the originals."""
+        ...
+
+
+class PassthroughNarrativeService:
+    """Deterministic default — no rewriting. Always returns None so callers
+    keep the original deterministic bullets."""
+
+    def rewrite_key_insights(self, bullets: list[str]) -> list[str] | None:
         return None
 
-    try:
-        raw = client.complete(
-            system=_SYSTEM_PROMPT,
-            user=json.dumps(bullets, ensure_ascii=False),
-            max_tokens=400,
-        )
-        result = json.loads(raw)
-    except Exception:
-        return None
 
-    if (
-        not isinstance(result, list)
-        or len(result) != len(bullets)
-        or not all(isinstance(s, str) and s.strip() for s in result)
-    ):
-        return None
+class LLMNarrativeService:
+    """Rewrites Key Insights bullets via an LLM for cleaner phrasing.
 
-    return [s.strip() for s in result]
+    Falls back gracefully to None on any failure so callers keep originals.
+    """
+
+    _SYSTEM_PROMPT = (
+        "You are a data analyst writing a concise insights summary. "
+        "You will receive a JSON array of pre-computed analytical findings. "
+        "Rewrite each one as a clear, professional, single sentence.\n\n"
+        "Rules:\n"
+        "- Preserve every number and percentage exactly as given\n"
+        "- Do not add new information or invent findings\n"
+        "- Return exactly one output string per input string\n"
+        "- Write in active voice, present tense\n"
+        "- Return ONLY a JSON array of strings — no other text, no markdown"
+    )
+
+    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
+        try:
+            from openai import OpenAI
+        except ImportError as e:
+            raise ImportError("openai package required: pip install openai") from e
+        from report.llm_client import OpenAIClient
+        self._client = OpenAIClient(api_key=api_key, model=model)
+
+    def rewrite_key_insights(self, bullets: list[str]) -> list[str] | None:
+        if not bullets:
+            return None
+        try:
+            raw = self._client.complete(
+                system=self._SYSTEM_PROMPT,
+                user=json.dumps(bullets, ensure_ascii=False),
+                max_tokens=400,
+            )
+            result = json.loads(raw)
+        except Exception:
+            return None
+
+        if (
+            not isinstance(result, list)
+            or len(result) != len(bullets)
+            or not all(isinstance(s, str) and s.strip() for s in result)
+        ):
+            return None
+
+        return [s.strip() for s in result]
+
+
+def get_narrative_service() -> NarrativeService:
+    """Return LLMNarrativeService if OPENAI_API_KEY is set, else PassthroughNarrativeService."""
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if api_key:
+        return LLMNarrativeService(api_key=api_key)
+    return PassthroughNarrativeService()
