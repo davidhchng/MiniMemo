@@ -1,6 +1,22 @@
 "use client"
 
 import { useEffect, useState } from "react"
+
+function useBtn() {
+  const [hov, setHov] = useState(false)
+  const [pressed, setPressed] = useState(false)
+  return {
+    onMouseEnter: () => setHov(true),
+    onMouseLeave: () => { setHov(false); setPressed(false) },
+    onMouseDown:  () => setPressed(true),
+    onMouseUp:    () => setPressed(false),
+    style: {
+      transition: "transform 0.12s ease, opacity 0.12s ease",
+      transform: pressed ? "scale(0.96)" : hov ? "scale(1.02)" : "scale(1)",
+      opacity: hov ? 0.88 : 1,
+    } as React.CSSProperties,
+  }
+}
 import { useRouter } from "next/navigation"
 import { analyzeFiles } from "../../lib/api"
 import { useReportStore } from "../../store/report-store"
@@ -15,6 +31,7 @@ export default function ContextPage() {
   const [background, setBackground] = useState("")
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState<string | null>(null)
+  const submitBtn = useBtn()
 
   useEffect(() => {
     if (!pendingFiles || pendingFiles.length === 0) {
@@ -182,6 +199,10 @@ export default function ContextPage() {
           <button
             type="submit"
             disabled={loading}
+            onMouseEnter={!loading ? submitBtn.onMouseEnter : undefined}
+            onMouseLeave={!loading ? submitBtn.onMouseLeave : undefined}
+            onMouseDown={!loading ? submitBtn.onMouseDown : undefined}
+            onMouseUp={!loading ? submitBtn.onMouseUp : undefined}
             style={{
               padding: "10px 0",
               background: loading ? "#f3f4f6" : "#111827",
@@ -193,6 +214,7 @@ export default function ContextPage() {
               cursor: loading ? "not-allowed" : "pointer",
               letterSpacing: "-0.01em",
               marginTop: 4,
+              ...(!loading ? submitBtn.style : {}),
             }}
           >
             {loading ? "Generating report…" : "Generate Report"}

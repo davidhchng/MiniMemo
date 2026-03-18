@@ -1,9 +1,27 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+
+function useBtn() {
+  const [hov, setHov] = useState(false)
+  const [pressed, setPressed] = useState(false)
+  return {
+    onMouseEnter: () => setHov(true),
+    onMouseLeave: () => { setHov(false); setPressed(false) },
+    onMouseDown:  () => setPressed(true),
+    onMouseUp:    () => setPressed(false),
+    style: {
+      transition: "transform 0.12s ease, opacity 0.12s ease",
+      transform: pressed ? "scale(0.96)" : hov ? "scale(1.02)" : "scale(1)",
+      opacity: hov ? 0.88 : 1,
+    } as React.CSSProperties,
+  }
+}
 
 export default function LandingPage() {
   const router = useRouter()
+  const btn = useBtn()
 
   return (
     <div style={{
@@ -65,6 +83,10 @@ export default function LandingPage() {
       {/* CTA */}
       <button
         onClick={() => router.push("/upload")}
+        onMouseEnter={btn.onMouseEnter}
+        onMouseLeave={btn.onMouseLeave}
+        onMouseDown={btn.onMouseDown}
+        onMouseUp={btn.onMouseUp}
         style={{
           padding: "12px 32px",
           background: "#111827",
@@ -75,6 +97,7 @@ export default function LandingPage() {
           fontWeight: 600,
           cursor: "pointer",
           letterSpacing: "-0.01em",
+          ...btn.style,
         }}
       >
         Get Started →

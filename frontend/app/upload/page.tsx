@@ -1,6 +1,22 @@
 "use client"
 
 import { useRef, useState } from "react"
+
+function useBtn() {
+  const [hov, setHov] = useState(false)
+  const [pressed, setPressed] = useState(false)
+  return {
+    onMouseEnter: () => setHov(true),
+    onMouseLeave: () => { setHov(false); setPressed(false) },
+    onMouseDown:  () => setPressed(true),
+    onMouseUp:    () => setPressed(false),
+    style: {
+      transition: "transform 0.12s ease, opacity 0.12s ease",
+      transform: pressed ? "scale(0.96)" : hov ? "scale(1.02)" : "scale(1)",
+      opacity: hov ? 0.88 : 1,
+    } as React.CSSProperties,
+  }
+}
 import { useRouter } from "next/navigation"
 import { useReportStore } from "../../store/report-store"
 
@@ -11,6 +27,7 @@ export default function UploadPage() {
   const router = useRouter()
   const setPendingFiles = useReportStore((s) => s.setPendingFiles)
   const inputRef = useRef<HTMLInputElement>(null)
+  const submitBtn = useBtn()
 
   function addFiles(incoming: File[]) {
     const valid = incoming.filter((f) => f.name.endsWith(".csv") || f.name.endsWith(".xlsx"))
@@ -155,6 +172,10 @@ export default function UploadPage() {
           <button
             type="submit"
             disabled={files.length === 0}
+            onMouseEnter={files.length > 0 ? submitBtn.onMouseEnter : undefined}
+            onMouseLeave={files.length > 0 ? submitBtn.onMouseLeave : undefined}
+            onMouseDown={files.length > 0 ? submitBtn.onMouseDown : undefined}
+            onMouseUp={files.length > 0 ? submitBtn.onMouseUp : undefined}
             style={{
               padding: "10px 0",
               background: files.length === 0 ? "#f3f4f6" : "#111827",
@@ -165,6 +186,7 @@ export default function UploadPage() {
               fontWeight: 600,
               cursor: files.length === 0 ? "not-allowed" : "pointer",
               letterSpacing: "-0.01em",
+              ...(files.length > 0 ? submitBtn.style : {}),
             }}
           >
             Continue →
