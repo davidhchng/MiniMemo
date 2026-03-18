@@ -1,131 +1,85 @@
 "use client"
 
-import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { analyzeFile } from "../lib/api"
-import { useReportStore } from "../store/report-store"
 
-export default function UploadPage() {
-  const [file, setFile] = useState<File | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export default function LandingPage() {
   const router = useRouter()
-  const setReport = useReportStore((s) => s.setReport)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!file) return
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await analyzeFile(file)
-      setReport(result)
-      router.push("/report")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.")
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#f8f9fb",
+      background: "#ffffff",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      padding: 24,
+      padding: "96px 24px 80px",
     }}>
-      <div style={{
-        background: "#fff",
-        border: "1px solid #e2e8f0",
-        borderRadius: 12,
-        padding: "40px 36px",
-        width: "100%",
-        maxWidth: 420,
-        boxShadow: "0 4px 6px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06)",
+
+      {/* Wordmark */}
+      <h1 style={{
+        fontSize: 64,
+        fontWeight: 800,
+        letterSpacing: "-0.04em",
+        lineHeight: 1,
+        margin: "0 0 32px",
+        color: "#111827",
       }}>
-        <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 8px", color: "#0f172a" }}>
-            MiniMemo
-          </h1>
-          <p style={{ fontSize: 14, color: "#64748b", margin: 0, lineHeight: 1.6 }}>
-            Upload a CSV or XLSX file to generate a structured analytics brief.
-          </p>
-        </div>
+        MiniMemo
+      </h1>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div>
-            <span style={{ display: "block", fontSize: 12, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 8 }}>
-              Dataset file
-            </span>
-            <label style={{
-              display: "block",
-              border: `1.5px dashed ${file ? "#86efac" : "#cbd5e1"}`,
-              borderRadius: 8,
-              padding: "14px 16px",
-              cursor: "pointer",
-              background: file ? "#f0fdf4" : "#fafbfc",
+      {/* Divider */}
+      <div style={{ width: 480, maxWidth: "100%", height: 1, background: "#e5e7eb", marginBottom: 32 }} />
+
+      {/* What it does */}
+      <div style={{ marginBottom: 52, textAlign: "center" }}>
+        <span style={{
+          display: "block",
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "#9ca3af",
+          marginBottom: 20,
+        }}>
+          What it does
+        </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[
+            "Upload any CSV or XLSX file",
+            "Automatic profiling — types, distributions, outliers",
+            "Structured insights and chart breakdowns",
+          ].map((line) => (
+            <p key={line} style={{
+              margin: 0,
+              fontSize: 16,
+              color: "#6b7280",
+              lineHeight: 1.5,
             }}>
-              <input
-                type="file"
-                accept=".csv,.xlsx"
-                style={{ display: "block", width: "100%", cursor: "pointer", fontSize: 13, color: "#374151" }}
-                onChange={(e) => {
-                  setFile(e.target.files?.[0] ?? null)
-                  setError(null)
-                }}
-              />
-            </label>
-          </div>
-
-          {file && (
-            <p style={{ fontSize: 13, color: "#059669", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
-              <span>✓</span>
-              <span>{file.name} — {(file.size / 1024).toFixed(1)} KB</span>
+              {line}
             </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={!file || loading}
-            style={{
-              padding: "10px 0",
-              background: !file || loading ? "#e2e8f0" : "#4f46e5",
-              color: !file || loading ? "#94a3b8" : "#fff",
-              border: "none",
-              borderRadius: 7,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: !file || loading ? "not-allowed" : "pointer",
-              letterSpacing: "-0.01em",
-            }}
-          >
-            {loading ? "Analyzing…" : "Generate Report"}
-          </button>
-        </form>
-
-        {error && (
-          <p style={{
-            marginTop: 16,
-            color: "#dc2626",
-            fontSize: 13,
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            borderRadius: 6,
-            padding: "8px 12px",
-            margin: "16px 0 0",
-          }}>
-            {error}
-          </p>
-        )}
+          ))}
+        </div>
       </div>
 
-      <p style={{ marginTop: 24, fontSize: 12, color: "#94a3b8" }}>
-        Supports CSV and XLSX · up to 200,000 rows
-      </p>
+      {/* CTA */}
+      <button
+        onClick={() => router.push("/upload")}
+        style={{
+          padding: "12px 32px",
+          background: "#111827",
+          color: "#ffffff",
+          border: "none",
+          borderRadius: 8,
+          fontSize: 15,
+          fontWeight: 600,
+          cursor: "pointer",
+          letterSpacing: "-0.01em",
+        }}
+      >
+        Get Started →
+      </button>
+
     </div>
   )
 }

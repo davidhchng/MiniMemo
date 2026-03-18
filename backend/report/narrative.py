@@ -51,13 +51,8 @@ class LLMNarrativeService:
         "- Return ONLY a JSON array of strings — no other text, no markdown"
     )
 
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
-        try:
-            from openai import OpenAI
-        except ImportError as e:
-            raise ImportError("openai package required: pip install openai") from e
-        from report.llm_client import OpenAIClient
-        self._client = OpenAIClient(api_key=api_key, model=model)
+    def __init__(self, client: object):
+        self._client = client
 
     def rewrite_key_insights(self, bullets: list[str]) -> list[str] | None:
         if not bullets:
@@ -83,8 +78,9 @@ class LLMNarrativeService:
 
 
 def get_narrative_service() -> NarrativeService:
-    """Return LLMNarrativeService if OPENAI_API_KEY is set, else PassthroughNarrativeService."""
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    if api_key:
-        return LLMNarrativeService(api_key=api_key)
-    return PassthroughNarrativeService()
+    """Return LLMNarrativeService if any API key is configured, else PassthroughNarrativeService."""
+    from report.llm_client import get_llm_client, MockLLMClient
+    client = get_llm_client()
+    if isinstance(client, MockLLMClient):
+        return PassthroughNarrativeService()
+    return LLMNarrativeService(client=client)
