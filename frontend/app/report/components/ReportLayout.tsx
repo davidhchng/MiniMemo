@@ -14,8 +14,8 @@ export const T = {
   textMuted:     "#6b7280",
   textFaint:     "#9ca3af",
   tableZebra:    "#fafafa",
-  violet:        "#7c3aed",
-  violetLight:   "#f5f3ff",
+  violet:        "#22c55e",
+  violetLight:   "#f0fdf4",
 }
 
 // ─── Shared styles ──────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ export function BulletRow({ text, isLast }: { text: string; isLast: boolean }) {
       borderBottom: isLast ? `1px solid ${T.borderLight}` : "none",
       fontSize: 15, lineHeight: 1.9, color: T.textSecondary, alignItems: "start",
     }}>
-      <span style={{ color: T.textFaint, paddingTop: 1 }}>—</span>
+      <span style={{ color: T.textFaint, paddingTop: 1 }}>·</span>
       <span>{text}</span>
     </li>
   )
@@ -119,7 +119,7 @@ export function Sep() {
 }
 
 export function Dash() {
-  return <span style={{ color: T.borderLight }}>—</span>
+  return <span style={{ color: T.borderLight }}>·</span>
 }
 
 export function ReportIntro({
@@ -175,7 +175,7 @@ export function flagStyle(flag: string) {
     email:            { background: "#fce7f3", color: "#9d174d" },
     url_like:         { background: "#e0f2fe", color: "#0369a1" },
     phone_like:       { background: "#fef3c7", color: "#92400e" },
-    id_like:          { background: "#ede9fe", color: "#6d28d9" },
+    id_like:          { background: "#dcfce7", color: "#16a34a" },
     low_cardinality:  { background: "#fef9c3", color: "#854d0e" },
     high_cardinality: { background: "#f1f5f9", color: "#475569" },
     likely_name:      { background: "#fdf2f8", color: "#86198f" },

@@ -36,7 +36,7 @@ export function RecommendationBlock({
             padding: "7px 0", borderTop: `1px solid ${T.borderLight}`,
             fontSize: 15, lineHeight: 1.9, color: T.textSecondary,
           }}>
-            <span style={{ color: T.textFaint, paddingTop: 1 }}>—</span>
+            <span style={{ color: T.textFaint, paddingTop: 1 }}>·</span>
             <span>{rec.observation}</span>
           </div>
         )}

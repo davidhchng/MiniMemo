@@ -98,7 +98,7 @@ export function DashboardSection({
                         padding: "5px 0", borderTop: `1px solid ${T.borderLight}`,
                         fontSize: 12, lineHeight: 1.6, color: T.textMuted, alignItems: "start",
                       }}>
-                        <span style={{ color: T.textFaint, paddingTop: 1 }}>—</span>
+                        <span style={{ color: T.textFaint, paddingTop: 1 }}>·</span>
                         <span>{b}</span>
                       </li>
                     ))}

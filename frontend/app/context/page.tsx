@@ -187,7 +187,7 @@ export default function ContextPage() {
             Files
           </span>
           {pendingFiles.map((f) => (
-            <span key={f.name} style={{ fontSize: 13, color: "#059669" }}>
+            <span key={f.name} style={{ fontSize: 13, color: "#16a34a" }}>
               ✓ {f.name}
             </span>
           ))}
@@ -290,7 +290,7 @@ export default function ContextPage() {
               ...(!loading ? submitBtn.style : {}),
             }}
           >
-            Generate Report
+            Run Analysis
           </button>
         </form>
 

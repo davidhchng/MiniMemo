@@ -85,7 +85,7 @@ export function InsightDeepDiveBlock({ insight, isFirst }: { insight: InsightBlo
               padding: "8px 0", borderTop: `1px solid ${T.borderLight}`,
               fontSize: 15, lineHeight: 1.9, color: T.textSecondary, alignItems: "start",
             }}>
-              <span style={{ color: T.textFaint, flexShrink: 0, paddingTop: 1 }}>—</span>
+              <span style={{ color: T.textFaint, flexShrink: 0, paddingTop: 1 }}>·</span>
               {b}
             </li>
           ))}

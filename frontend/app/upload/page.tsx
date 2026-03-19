@@ -29,8 +29,10 @@ export default function UploadPage() {
   const inputRef = useRef<HTMLInputElement>(null)
   const submitBtn = useBtn()
 
+  const VALID_EXTS = [".csv", ".xlsx", ".tsv", ".tab", ".json", ".jsonl", ".ndjson", ".parquet"]
+
   function addFiles(incoming: File[]) {
-    const valid = incoming.filter((f) => f.name.endsWith(".csv") || f.name.endsWith(".xlsx"))
+    const valid = incoming.filter((f) => VALID_EXTS.some((ext) => f.name.toLowerCase().endsWith(ext)))
     setFiles((prev) => {
       const existing = new Set(prev.map((f) => f.name))
       return [...prev, ...valid.filter((f) => !existing.has(f.name))]
@@ -84,7 +86,7 @@ export default function UploadPage() {
             Upload datasets
           </h2>
           <p style={{ fontSize: 13, color: "#9ca3af", margin: 0 }}>
-            CSV or XLSX · up to 200,000 rows · multiple files supported
+            CSV, XLSX, JSON, JSONL, Parquet, TSV · up to 200,000 rows · multiple files supported
           </p>
         </div>
 
@@ -126,12 +128,12 @@ export default function UploadPage() {
                 Drop files here{" "}
                 <span style={{ color: "#374151", fontWeight: 500 }}>or browse</span>
               </p>
-              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9ca3af" }}>CSV or XLSX</p>
+              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9ca3af" }}>CSV, XLSX, JSON, JSONL, Parquet, TSV</p>
             </div>
             <input
               ref={inputRef}
               type="file"
-              accept=".csv,.xlsx"
+              accept=".csv,.xlsx,.tsv,.tab,.json,.jsonl,.ndjson,.parquet"
               multiple
               style={{ display: "none" }}
               onChange={(e) => {
@@ -145,9 +147,9 @@ export default function UploadPage() {
           {files.length > 0 && (
             <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
               {files.map((f) => (
-                <li key={f.name} style={{ fontSize: 13, color: "#059669", display: "flex", alignItems: "center", gap: 6 }}>
+                <li key={f.name} style={{ fontSize: 13, color: "#16a34a", display: "flex", alignItems: "center", gap: 6 }}>
                   <span>✓</span>
-                  <span style={{ flex: 1 }}>{f.name} — {(f.size / 1024).toFixed(1)} KB</span>
+                  <span style={{ flex: 1 }}>{f.name} · {(f.size / 1024).toFixed(1)} KB</span>
                   <button
                     type="button"
                     onClick={() => removeFile(f.name)}

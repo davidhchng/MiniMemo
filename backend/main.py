@@ -12,12 +12,19 @@ TODO (Phase 4): Replace mock report sections with LLM-generated narrative
 
 import hashlib
 import io
+import json
+import logging
+import os
 import re
+import traceback
 from collections import OrderedDict
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import pandas as pd
+
+logging.basicConfig(level=logging.INFO)
 
 from models import AnalysisResponse, BatchAnalysisResponse, DatasetSummary, InsightBlock, JoinInsight, JoinSuggestion, RecommendationItem, ReportSection
 from processing import profile_dataframe
@@ -31,15 +38,26 @@ _llm_client = get_llm_client()
 
 app = FastAPI(title="MiniMemo API", version="0.1.0")
 
+# CORS: defaults to allow-all for local dev.
+# Set ALLOWED_ORIGINS="https://your-app.vercel.app" in production.
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "*")
+_allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()] if _raw_origins != "*" else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    logging.error("Unhandled exception:\n%s", tb)
+    return JSONResponse(status_code=500, content={"detail": f"{type(exc).__name__}: {exc}"})
+
 MAX_ROWS = 200_000
-ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
+ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".tsv", ".tab", ".json", ".jsonl", ".ndjson", ".parquet"}
 _CACHE_MAX = 50
 
 # In-memory LRU cache: hash(file_bytes + goals + background) → AnalysisResponse
@@ -53,6 +71,56 @@ def _cache_key(content: bytes, goals: str | None, background: str | None) -> str
 
 # String flags that mark a column as non-analytic (exclude from dimensions)
 _EXCLUSION_FLAGS = {"email", "url_like", "phone_like", "id_like"}
+
+
+# ---------------------------------------------------------------------------
+# File parsing
+# ---------------------------------------------------------------------------
+
+def _is_nested(df: pd.DataFrame) -> bool:
+    """Return True if any column contains dicts or lists (nested JSON)."""
+    for col in df.columns:
+        sample = df[col].dropna().head(5)
+        if any(isinstance(v, (dict, list)) for v in sample):
+            return True
+    return False
+
+
+def _parse_file(contents: bytes, ext: str) -> pd.DataFrame:
+    """Parse raw file bytes into a DataFrame based on extension."""
+    buf = io.BytesIO(contents)
+
+    if ext == ".csv":
+        return pd.read_csv(buf)
+
+    if ext in (".tsv", ".tab"):
+        return pd.read_csv(buf, sep="\t")
+
+    if ext == ".parquet":
+        return pd.read_parquet(buf)
+
+    if ext in (".jsonl", ".ndjson"):
+        return pd.read_json(buf, lines=True)
+
+    if ext == ".json":
+        try:
+            df = pd.read_json(buf)
+        except Exception:
+            df = None
+        # If any column contains dicts/lists, try json_normalize to flatten
+        if df is not None and _is_nested(df):
+            try:
+                df = pd.json_normalize(json.loads(contents))
+            except Exception:
+                pass
+        if df is None:
+            raise ValueError("Could not parse JSON into a flat table. Ensure the file is an array of objects or a JSON object with array values.")
+        return df
+
+    if ext == ".xlsx":
+        return pd.read_excel(buf)
+
+    raise ValueError(f"Unrecognised extension: {ext}")
 
 
 @app.get("/health")
@@ -79,7 +147,7 @@ async def analyze(
         if ext not in ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported file type '{ext}'. Upload a CSV or XLSX file.",
+                detail=f"Unsupported file type '{ext}'. Supported formats: CSV, TSV, JSON, JSONL, Parquet, XLSX.",
             )
 
         contents = await file.read()
@@ -89,15 +157,14 @@ async def analyze(
             _RESULT_CACHE.move_to_end(cache_key)
             cached = _RESULT_CACHE[cache_key]
             results.append(cached)
-            per_file.append((cached.dataset, pd.read_csv(io.BytesIO(contents)) if ext == ".csv" else pd.read_excel(io.BytesIO(contents))))
+            try:
+                per_file.append((cached.dataset, _parse_file(contents, ext)))
+            except Exception:
+                pass
             continue
 
         try:
-            df = (
-                pd.read_csv(io.BytesIO(contents))
-                if ext == ".csv"
-                else pd.read_excel(io.BytesIO(contents))
-            )
+            df = _parse_file(contents, ext)
         except Exception as exc:
             raise HTTPException(status_code=422, detail=f"Could not parse '{filename}': {exc}")
 

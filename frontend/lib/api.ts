@@ -1,7 +1,5 @@
 import type { BatchAnalysisResponse } from "./types"
 
-const API_URL = "http://localhost:8001"
-
 export async function analyzeFiles(
   files: File[],
   context?: { goals?: string; background?: string },
@@ -11,7 +9,7 @@ export async function analyzeFiles(
   if (context?.goals)      form.append("goals", context.goals)
   if (context?.background) form.append("background", context.background)
 
-  const res = await fetch(`${API_URL}/analyze`, {
+  const res = await fetch("/api/analyze", {
     method: "POST",
     body: form,
   })

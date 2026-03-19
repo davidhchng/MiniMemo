@@ -90,7 +90,7 @@ def _is_numeric_id_like(series: pd.Series, col_name: str) -> bool:
 
 def infer_semantic_flags(series: pd.Series, col_name: str, row_count: int) -> list[str]:
     """Return semantic flags for a string column. Exclusion flags short-circuit further analysis."""
-    sample = series.dropna().head(100)
+    sample = series.dropna().head(100).astype(str)
     if len(sample) == 0:
         return []
 
