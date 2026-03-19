@@ -1,49 +1,60 @@
-# MiniMemo
+# MiniMemo Data Analytics
 
-**Analytics brief generator for tabular datasets.**
+**Upload a dataset. Add context. Get a structured, tailored analytics report.**
 
-Upload a CSV or XLSX file → get a structured analytics report with schema info, summary stats, and insights.
+MiniMemo Data Analytics is a lightweight analytics report generator that profiles tabular datasets, surfaces insights, and produces clean, readable reports — without requiring any data science setup.
 
-> Phase 1 foundation — deterministic analysis, mock narrative. AI layer coming in Phase 4.
+**Live:** [mini-memo-data-analytics.vercel.app](https://mini-memo-data-analytics.vercel.app)
 
 ---
 
 ## What It Does
 
-1. User uploads a CSV or XLSX file
-2. Backend profiles the dataset: column types, null rates, summary stats
-3. Backend returns structured JSON (schema + insights + report sections)
-4. Frontend renders a clean analytics report
+1. Upload one or more datasets (CSV, XLSX, TSV, JSON, JSONL, Parquet)
+2. Optionally describe your goal and dataset background
+3. Receive a structured report covering:
+   - Column types, null rates, cardinality, and distributions
+   - Outlier detection across numeric columns
+   - Correlation analysis between measures
+   - Group breakdowns by dimension
+   - Time trends when date columns are present
+   - Ranked, actionable recommendations
 
-## Architecture
+All analysis is deterministic. An LLM optionally rewrites narrative sections — but never invents numbers.
 
-```
-frontend (Next.js)          backend (FastAPI)
-─────────────────           ─────────────────
-Upload page          →      POST /analyze
-  file input                  pandas profiling
-  calls /analyze              returns AnalysisResponse
+---
 
-Report page          ←      AnalysisResponse
-  data structure               DatasetSummary
-  report sections              ReportSection[]
-  insight blocks               InsightBlock[]
-```
+## Example Report
 
-### Three-layer design (built incrementally)
+Given a sales dataset with columns `date`, `revenue`, `category`, `region`:
 
-```
-Layer 1 — Data Processing     ← built in Phase 1 (this)
-  deterministic pandas code
-  all numbers computed here
+**Dataset Overview**
+- 50 rows x 4 columns
+- Dimensions: category, region
+- Time dimension: date
 
-Layer 3 — Visualization       ← Phase 3
-  Plotly chart specs
+**Insights**
+- `category` — 3 unique values. Top: A (44%), B (30%), C (26%)
+- `region` — 3 unique values. Top: North (40%), South (30%), East (30%)
+- Datetime column `date` detected — trend chart rendered if series has 6+ points
 
-Layer 2 — Narrative           ← Phase 4
-  LLM sees only pre-computed outputs
-  never invents statistics
-```
+**Recommendations**
+- With 2 grouping dimensions available (category, region), cross-dimensional analysis may reveal interaction effects not visible in single-dimension breakdowns
+
+**Assumptions & Limitations**
+- Statistical patterns noted where sample size may limit generalisability
+- Columns classified as identifiers are excluded from aggregations
+
+---
+
+## Stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | Next.js 14 (App Router), Zustand, Plotly |
+| Backend | FastAPI, pandas, pyarrow |
+| AI (optional) | OpenAI or Gemini — narrative rewriting only |
+| Deployment | Vercel (frontend) + Railway (backend) |
 
 ---
 
@@ -54,11 +65,11 @@ Layer 2 — Narrative           ← Phase 4
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate       # Windows: venv\Scripts\activate
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn main:app --reload
-# → http://localhost:8000
-# → http://localhost:8000/docs  (Swagger UI)
+cp .env.example .env            # add OPENAI_API_KEY or GEMINI_API_KEY if wanted
+python run.py
+# → http://localhost:8001
 ```
 
 ### Frontend
@@ -73,79 +84,77 @@ npm run dev
 
 ---
 
+## Supported File Formats
+
+| Format | Extensions |
+|---|---|
+| CSV | `.csv` |
+| Excel | `.xlsx` |
+| Tab-separated | `.tsv`, `.tab` |
+| JSON | `.json` |
+| JSON Lines | `.jsonl`, `.ndjson` |
+| Parquet | `.parquet` |
+
+Up to 200,000 rows per file. Multiple files supported in one session.
+
+---
+
 ## Project Structure
 
 ```
 MiniMemo/
 ├── backend/
-│   ├── main.py           # FastAPI app, POST /analyze endpoint
+│   ├── main.py           # FastAPI app, /analyze endpoint, LRU cache
 │   ├── models.py         # Pydantic data contracts
-│   ├── processing.py     # Deterministic pandas profiling (Layer 1)
-│   └── requirements.txt
+│   ├── processing.py     # Deterministic pandas profiling
+│   ├── report/
+│   │   ├── charts.py     # Plotly chart spec builders
+│   │   ├── llm_client.py # Provider-abstracted LLM interface
+│   │   └── narrative.py  # Optional AI narrative layer
+│   ├── Procfile          # Railway deployment
+│   └── runtime.txt       # Python 3.12
 │
 └── frontend/
     ├── app/
-    │   ├── layout.tsx
-    │   ├── page.tsx           # Upload page
-    │   └── report/
-    │       └── page.tsx       # Report display page
+    │   ├── page.tsx           # Landing page
+    │   ├── upload/page.tsx    # File upload
+    │   ├── context/page.tsx   # Goals + background form
+    │   ├── report/page.tsx    # Report display
+    │   └── api/analyze/       # Next.js proxy to backend
     ├── lib/
     │   ├── types.ts           # TypeScript mirrors of backend models
-    │   └── api.ts             # Typed fetch wrapper
+    │   └── api.ts             # Fetch wrapper
     └── store/
-        └── report-store.ts    # Zustand: holds AnalysisResponse between pages
+        └── report-store.ts    # Zustand state
 ```
 
 ---
 
-## Data Contracts
+## Deployment
 
-```
-AnalysisResponse
-├── dataset: DatasetSummary
-│   ├── filename, row_count, col_count
-│   └── columns: ColumnSummary[]
-│       ├── name, dtype, null_count, null_pct, unique_count
-│       ├── sample_values: string[]
-│       └── numeric_stats?: { mean, median, std, min, max }
-│
-├── insights: InsightBlock[]
-│   ├── title, summary
-│   ├── bullets: string[]
-│   └── caveat?: string
-│
-└── report_sections: ReportSection[]
-    ├── title
-    └── content
-```
-
----
-
-## Roadmap
-
-| Phase | Goal | Status |
+| Service | Platform | URL |
 |---|---|---|
-| 1 — Upload + Profile | File in → schema + stats out | ✅ Done |
-| 2 — Join detection | Suggest join keys across tables | ⬜ Planned |
-| 3 — Context form + full analysis | User objective, aggregations, chart specs | ⬜ Planned |
-| 4 — LLM narrative | AI writes report around computed stats | ⬜ Planned |
-| 5 — Polish | Error handling, edge cases, loading states | ⬜ Planned |
-| 6 — Portfolio layer | Landing page, demo dataset, deploy | ⬜ Planned |
+| Frontend | Vercel | [mini-memo-data-analytics.vercel.app](https://mini-memo-data-analytics.vercel.app) |
+| Backend | Railway | [minimemo-production.up.railway.app](https://minimemo-production.up.railway.app) |
 
-### Key TODOs
+**Environment variables required:**
 
-- **Phase 2**: `backend/processing/join_suggester.py` — heuristic join key detection
-- **Phase 3**: `POST /sessions/{id}/context` — user objective + domain notes
-- **Phase 3**: `backend/charts/` — Plotly chart spec builders (histogram, bar, heatmap, timeseries, scatter)
-- **Phase 4**: `backend/report/llm_client.py` — provider-abstracted LLM interface (`Protocol`)
-- **Phase 4**: `backend/report/builder.py` — section-by-section report generation from `AnalysisSummary`
-- **Phase 4**: LLM receives only pre-computed stats — never raw data
+Frontend (Vercel):
+```
+BACKEND_URL=https://minimemo-production.up.railway.app
+```
+
+Backend (Railway):
+```
+OPENAI_API_KEY=...         # or GEMINI_API_KEY — at least one for AI narrative
+ALLOWED_ORIGINS=https://mini-memo-data-analytics.vercel.app
+```
 
 ---
 
-## Principles
+## Design Principles
 
-- **Deterministic code computes all numbers.** The LLM never invents statistics.
-- **Multi-dataset joins are user-confirmed.** Never auto-applied.
-- **Predefined chart system.** Not a freeform chart generator.
-- **MVP = EDA only.** No ML, no forecasting, no causal inference.
+- **Deterministic first.** All numbers come from pandas. The LLM never invents statistics.
+- **Generalizable.** No hardcoded assumptions about dataset domain or structure.
+- **Multi-dataset ready.** Each file is profiled independently; join detection is available.
+- **Minimal UI.** Clean, readable, structured — not a dashboard.
