@@ -124,7 +124,7 @@ def infer_semantic_flags(series: pd.Series, col_name: str, row_count: int) -> li
         unique_ratio = series.nunique(dropna=True) / non_null
         n_unique = series.nunique(dropna=True)
 
-        if unique_ratio <= 0.05 and n_unique <= 50:
+        if unique_ratio <= 0.10 and n_unique <= 100:
             flags.append("low_cardinality")
         elif unique_ratio >= 0.50:
             flags.append("high_cardinality")

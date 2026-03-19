@@ -133,7 +133,7 @@ export default function ReportPage() {
         </div>
       </nav>
 
-      <main style={{ maxWidth: 860, margin: "0 auto", padding: "64px 48px 120px" }}>
+      <main style={{ maxWidth: 860, margin: "0 auto", padding: "64px 32px 120px" }}>
 
         {/* ── Page header ── */}
         <div style={{ marginBottom: 64 }}>
@@ -141,10 +141,14 @@ export default function ReportPage() {
             Full Report
           </h1>
           <div style={{ height: 1, background: T.divider, marginBottom: 14 }} />
-          <p style={{ fontSize: 13, color: T.textFaint, margin: 0, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
-            <span style={{ color: T.textMuted, fontWeight: 500 }}>{dataset.filename}</span>
+          <p style={{ fontSize: 13, color: T.textMuted, margin: "0 0 24px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+            <span style={{ color: T.textSecondary, fontWeight: 500 }}>{dataset.filename}</span>
             <Sep />{dataset.row_count.toLocaleString()} rows
             <Sep />{dataset.col_count} columns
+            <Sep />{new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+          </p>
+          <p style={{ margin: 0, fontSize: 15, lineHeight: 1.9, color: T.textMuted, maxWidth: 680 }}>
+            <ReportIntro dataset={dataset} insights={otherInsights} hasBackground={!!projectBg} />
           </p>
         </div>
 
@@ -204,8 +208,8 @@ export default function ReportPage() {
                   gap: 14,
                   padding: "12px 0",
                   borderBottom: `1px solid ${T.borderLight}`,
-                  fontSize: 14,
-                  lineHeight: 1.8,
+                  fontSize: 15,
+                  lineHeight: 1.9,
                   color: T.textSecondary,
                   alignItems: "start",
                 }}>
@@ -312,7 +316,7 @@ export default function ReportPage() {
               {conclusion && (
                 <p style={{
                   margin: keyInsights && keyInsights.bullets.length > 0 ? "0 0 24px" : 0,
-                  fontSize: 15,
+                  fontSize: 16,
                   lineHeight: 2.0,
                   color: T.textSecondary,
                   maxWidth: 660,
@@ -336,7 +340,7 @@ export default function ReportPage() {
                       <li key={i} style={{
                         display: "grid", gridTemplateColumns: "20px 1fr", gap: 12,
                         padding: "8px 0", borderTop: `1px solid ${T.divider}`,
-                        fontSize: 14, lineHeight: 1.7, color: T.textSecondary, alignItems: "start",
+                        fontSize: 15, lineHeight: 1.9, color: T.textSecondary, alignItems: "start",
                       }}>
                         <span style={{ color: T.violet, fontSize: 7, paddingTop: 7 }}>●</span>
                         {b}
@@ -379,7 +383,7 @@ function DashboardSection({
     ? (dataset.columns.reduce((s, c) => s + c.null_pct, 0) / dataset.columns.length * 100).toFixed(1)
     : "0.0"
 
-  const chartsToShow = insights.filter((b) => b.chart !== null).slice(0, 2)
+  const chartsToShow = insights.filter((b) => b.chart !== null).slice(0, 3)
 
   async function handleSave() {
     if (!dashboardRef.current) return
@@ -425,13 +429,47 @@ function DashboardSection({
           ))}
         </div>
 
-        {/* Charts */}
-        {chartsToShow.map((insight) => (
-          <div key={insight.title} style={{ marginBottom: 16 }}>
-            <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 600, color: T.textSecondary }}>{insight.title}</p>
-            <InsightChart chart={insight.chart!} />
+        {/* Chart panels */}
+        {chartsToShow.length > 0 && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: chartsToShow.length === 1 ? "1fr" : "1fr 1fr",
+            gap: 16,
+          }}>
+            {chartsToShow.map((insight) => (
+              <div key={insight.title} style={{
+                border: `1px solid ${T.divider}`,
+                borderRadius: 10,
+                padding: "20px 20px 16px",
+                background: T.pageBg,
+              }}>
+                <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: T.textPrimary, letterSpacing: "-0.01em" }}>
+                  {insight.title}
+                </p>
+                <InsightChart chart={insight.chart!} />
+                {insight.summary && (
+                  <p style={{ margin: "14px 0 10px", fontSize: 13, color: T.textSecondary, lineHeight: 1.7 }}>
+                    {insight.summary}
+                  </p>
+                )}
+                {insight.bullets.length > 0 && (
+                  <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                    {insight.bullets.slice(0, 3).map((b, i) => (
+                      <li key={i} style={{
+                        display: "grid", gridTemplateColumns: "16px 1fr", gap: 8,
+                        padding: "5px 0", borderTop: `1px solid ${T.borderLight}`,
+                        fontSize: 12, lineHeight: 1.6, color: T.textMuted, alignItems: "start",
+                      }}>
+                        <span style={{ color: T.textFaint, paddingTop: 1 }}>—</span>
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
       <button
@@ -481,7 +519,7 @@ function InsightDeepDiveBlock({ insight, isFirst }: { insight: InsightBlock; isF
         {insight.title}
       </h3>
       {insight.summary && (
-        <p style={{ margin: "0 0 16px", fontSize: 14, color: T.textMuted, lineHeight: 1.7, maxWidth: 640 }}>
+        <p style={{ margin: "0 0 16px", fontSize: 15, color: T.textSecondary, lineHeight: 1.9, maxWidth: 640 }}>
           {insight.summary}
         </p>
       )}
@@ -492,7 +530,7 @@ function InsightDeepDiveBlock({ insight, isFirst }: { insight: InsightBlock; isF
             <li key={i} style={{
               display: "grid", gridTemplateColumns: "20px 1fr", gap: 12,
               padding: "8px 0", borderTop: `1px solid ${T.borderLight}`,
-              fontSize: 14, lineHeight: 1.75, color: T.textSecondary, alignItems: "start",
+              fontSize: 15, lineHeight: 1.9, color: T.textSecondary, alignItems: "start",
             }}>
               <span style={{ color: T.textFaint, flexShrink: 0, paddingTop: 1 }}>—</span>
               {b}
@@ -542,7 +580,7 @@ function RecommendationBlock({
           <div style={{
             display: "grid", gridTemplateColumns: "20px 1fr", gap: 10,
             padding: "7px 0", borderTop: `1px solid ${T.borderLight}`,
-            fontSize: 14, lineHeight: 1.75, color: T.textSecondary,
+            fontSize: 15, lineHeight: 1.9, color: T.textSecondary,
           }}>
             <span style={{ color: T.textFaint, paddingTop: 1 }}>—</span>
             <span>{rec.observation}</span>
@@ -552,7 +590,7 @@ function RecommendationBlock({
           <div style={{
             display: "grid", gridTemplateColumns: "20px 1fr", gap: 10,
             padding: "7px 0", borderTop: `1px solid ${T.borderLight}`,
-            fontSize: 14, lineHeight: 1.75, color: T.textSecondary,
+            fontSize: 15, lineHeight: 1.9, color: T.textSecondary,
           }}>
             <span style={{ color: T.violet, fontSize: 10, paddingTop: 5 }}>▸</span>
             <span>{rec.action}</span>
@@ -571,7 +609,7 @@ function BulletRow({ text, isLast }: { text: string; isLast: boolean }) {
       display: "grid", gridTemplateColumns: "20px 1fr", gap: 12,
       padding: "10px 0", borderTop: `1px solid ${T.borderLight}`,
       borderBottom: isLast ? `1px solid ${T.borderLight}` : "none",
-      fontSize: 14, lineHeight: 1.8, color: T.textSecondary, alignItems: "start",
+      fontSize: 15, lineHeight: 1.9, color: T.textSecondary, alignItems: "start",
     }}>
       <span style={{ color: T.textFaint, paddingTop: 1 }}>—</span>
       <span>{text}</span>
@@ -678,7 +716,7 @@ function JoinStats({ insight, nameA, nameB }: { insight: JoinInsight; nameA: str
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: T.textFaint }}>
+    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: T.textMuted }}>
       {children}
     </span>
   )
@@ -770,6 +808,43 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
     >
       {children}
     </button>
+  )
+}
+
+function ReportIntro({
+  dataset,
+  insights,
+  hasBackground,
+}: {
+  dataset: { filename: string; row_count: number; col_count: number }
+  insights: InsightBlock[]
+  hasBackground: boolean
+}) {
+  const insightTitles = insights.map((b) => b.title.toLowerCase())
+  const hasCorrelation = insightTitles.some((t) => t.includes("relationship") || t.includes("correlation"))
+  const hasTrend       = insightTitles.some((t) => t.includes("time") || t.includes("trend"))
+  const hasOutlier     = insightTitles.some((t) => t.includes("outlier"))
+  const hasDist        = insightTitles.some((t) => t.includes("distribution"))
+
+  const coverage: string[] = []
+  if (hasCorrelation) coverage.push("variable relationships")
+  if (hasDist)        coverage.push("distribution patterns")
+  if (hasOutlier)     coverage.push("outlier detection")
+  if (hasTrend)       coverage.push("trends over time")
+  if (coverage.length === 0) coverage.push("column structure and value distributions")
+
+  const last  = coverage.pop()!
+  const coverageStr = coverage.length > 0 ? `${coverage.join(", ")}, and ${last}` : last
+
+  return (
+    <>
+      This report provides a structured analysis of{" "}
+      <span style={{ color: T.textSecondary, fontWeight: 500 }}>{dataset.filename}</span>
+      {", "}covering {dataset.row_count.toLocaleString()} records across {dataset.col_count} columns.
+      {" "}It examines {coverageStr}
+      {hasBackground ? ", informed by the context and goals provided." : "."}
+      {" "}Key findings, recommendations, and assumptions are outlined in the sections below.
+    </>
   )
 }
 

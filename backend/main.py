@@ -98,6 +98,8 @@ async def analyze(
 
         excl = _excluded(dataset)
         assumptions, limitations = _build_split_assumptions(dataset, excl, _narrative_svc)
+        if dataset.row_count < 100:
+            assumptions.insert(0, f"This dataset has only {dataset.row_count} rows. Statistical patterns may not generalise — interpret results cautiously.")
         rec_items = _build_recommendation_items(dataset, df, key_bullets, goals, background)
         conclusion = _build_conclusion(key_bullets, dataset.filename, _narrative_svc, goals)
 
@@ -768,11 +770,23 @@ def _build_insights(dataset: DatasetSummary, df: pd.DataFrame, goals: str | None
     key = _build_key_insights(measures, dimensions, time_cols, df)
     if key:
         insights.append(key)
+    elif not measures:
+        # All-string dataset: generate a categorical overview instead
+        string_overview = _build_string_overview_insight(dataset, df)
+        if string_overview:
+            insights.append(string_overview)
 
     # ── 3. Variable Relationships (correlation analysis) ──────────────────
     corr_block = _build_correlation_insight(measures, df)
     if corr_block:
         insights.append(corr_block)
+    elif len(measures) >= 2:
+        # Add a note to Key Insights if correlation was expected but found nothing
+        key_block = next((b for b in insights if b.title == "Key Insights"), None)
+        if key_block:
+            key_block.bullets.append(
+                "No strong linear relationships (|r| > 0.3) were detected between numeric columns — variables appear largely independent."
+            )
 
     # ── 4. Per-measure distributions with shape analysis (up to 3) ────────
     for m in measures[:3]:
@@ -784,6 +798,12 @@ def _build_insights(dataset: DatasetSummary, df: pd.DataFrame, goals: str | None
     outlier_block = _build_outlier_insight(measures, df)
     if outlier_block:
         insights.append(outlier_block)
+    elif measures:
+        key_block = next((b for b in insights if b.title == "Key Insights"), None)
+        if key_block:
+            key_block.bullets.append(
+                "No significant outliers were detected in the numeric columns using the IQR method."
+            )
 
     # ── 6. Dimension × measure breakdowns — all dimensions, not just 2 ────
     for dim in dimensions[:4]:
@@ -815,6 +835,40 @@ def _build_insights(dataset: DatasetSummary, df: pd.DataFrame, goals: str | None
             break
 
     return insights
+
+
+def _build_string_overview_insight(dataset: DatasetSummary, df: pd.DataFrame) -> InsightBlock | None:
+    """Fallback insight for datasets with no numeric columns.
+
+    Summarises the top categorical values for up to 3 string columns.
+    """
+    string_cols = [c for c in dataset.columns if c.dtype == "string" and not (_EXCLUSION_FLAGS & set(c.flags))]
+    if not string_cols:
+        return None
+
+    bullets: list[str] = []
+    for col in string_cols[:3]:
+        if col.name not in df.columns:
+            continue
+        series = df[col.name].dropna().astype(str)
+        if len(series) == 0:
+            continue
+        counts = series.value_counts(normalize=True).head(3)
+        top_parts = [f"{val} ({pct:.0%})" for val, pct in counts.items()]
+        n_unique = series.nunique()
+        bullets.append(f"{col.name} — {n_unique} unique values. Top: {', '.join(top_parts)}.")
+
+    if not bullets:
+        return None
+
+    return InsightBlock(
+        title="Column Overview",
+        summary=(
+            "This dataset contains no numeric measures. "
+            "The analysis below summarises the categorical structure of the most informative columns."
+        ),
+        bullets=bullets,
+    )
 
 
 def _build_key_insights(
@@ -1148,7 +1202,11 @@ def _build_recommendation_items(
     for bullet in fallback_bullets:
         words = bullet.split()
         title = " ".join(words[:6]).rstrip(".,") if words else "Recommendation"
-        items.append(RecommendationItem(title=title, observation=bullet, action=""))
+        items.append(RecommendationItem(
+            title=title,
+            observation=bullet,
+            action="Review this finding with your team and determine whether it warrants a change to current strategy or processes.",
+        ))
     return items
 
 
