@@ -114,6 +114,7 @@ When given a task:
 2. Implement only that
 3. Keep code readable
 4. Ensure it aligns with deterministic-first philosophy
+5. no emm dashes anywhere
 
 ---
 

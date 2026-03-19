@@ -13,7 +13,10 @@ whether an LLM API key is configured. main.py depends only on the Protocol.
 
 from __future__ import annotations
 import json
+import logging
 from typing import Protocol, runtime_checkable
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -182,8 +185,13 @@ class LLMNarrativeService:
                 user=json.dumps(context, ensure_ascii=False),
                 max_tokens=700,
             )
+        except Exception as exc:
+            logger.warning("LLM call failed in generate_analytical_insights: %s", exc)
+            return None
+        try:
             result = json.loads(raw)
-        except Exception:
+        except json.JSONDecodeError as exc:
+            logger.warning("LLM JSON parse failed in generate_analytical_insights. Raw: %.200s — Error: %s", raw, exc)
             return None
 
         if (
@@ -211,7 +219,8 @@ class LLMNarrativeService:
                 user=json.dumps(payload, ensure_ascii=False),
                 max_tokens=400,
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("LLM call failed in rewrite_project_background: %s", exc)
             return None
         text = raw.strip().strip('"').strip()
         return text if len(text) > 50 else None
@@ -234,8 +243,13 @@ class LLMNarrativeService:
                 user=json.dumps(payload, ensure_ascii=False),
                 max_tokens=700,
             )
+        except Exception as exc:
+            logger.warning("LLM call failed in generate_recommendation_items: %s", exc)
+            return None
+        try:
             result = json.loads(raw)
-        except Exception:
+        except json.JSONDecodeError as exc:
+            logger.warning("LLM JSON parse failed in generate_recommendation_items. Raw: %.200s — Error: %s", raw, exc)
             return None
 
         if not isinstance(result, list) or not result:
@@ -264,8 +278,13 @@ class LLMNarrativeService:
                 user=json.dumps(context, ensure_ascii=False),
                 max_tokens=500,
             )
+        except Exception as exc:
+            logger.warning("LLM call failed in generate_split_assumptions: %s", exc)
+            return None
+        try:
             result = json.loads(raw)
-        except Exception:
+        except json.JSONDecodeError as exc:
+            logger.warning("LLM JSON parse failed in generate_split_assumptions. Raw: %.200s — Error: %s", raw, exc)
             return None
 
         if not isinstance(result, dict):
@@ -289,7 +308,8 @@ class LLMNarrativeService:
                 user=json.dumps(payload, ensure_ascii=False),
                 max_tokens=350,
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("LLM call failed in generate_conclusion: %s", exc)
             return None
         text = raw.strip().strip('"').strip()
         return text if text else None

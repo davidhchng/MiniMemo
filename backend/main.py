@@ -12,6 +12,8 @@ TODO (Phase 4): Replace mock report sections with LLM-generated narrative
 
 import hashlib
 import io
+import re
+from collections import OrderedDict
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,9 +40,10 @@ app.add_middleware(
 
 MAX_ROWS = 200_000
 ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
+_CACHE_MAX = 50
 
-# In-memory cache: hash(file_bytes + goals + background) → AnalysisResponse
-_RESULT_CACHE: dict[str, AnalysisResponse] = {}
+# In-memory LRU cache: hash(file_bytes + goals + background) → AnalysisResponse
+_RESULT_CACHE: OrderedDict[str, AnalysisResponse] = OrderedDict()
 
 def _cache_key(content: bytes, goals: str | None, background: str | None) -> str:
     h = hashlib.sha256(content)
@@ -83,6 +86,7 @@ async def analyze(
         cache_key = _cache_key(contents, goals, background)
 
         if cache_key in _RESULT_CACHE:
+            _RESULT_CACHE.move_to_end(cache_key)
             cached = _RESULT_CACHE[cache_key]
             results.append(cached)
             per_file.append((cached.dataset, pd.read_csv(io.BytesIO(contents)) if ext == ".csv" else pd.read_excel(io.BytesIO(contents))))
@@ -96,6 +100,13 @@ async def analyze(
             )
         except Exception as exc:
             raise HTTPException(status_code=422, detail=f"Could not parse '{filename}': {exc}")
+
+        dupes = [n for n, c in pd.Series(df.columns).value_counts().items() if c > 1]
+        if dupes:
+            raise HTTPException(
+                status_code=422,
+                detail=f"'{filename}' has duplicate column names: {', '.join(str(c) for c in dupes[:5])}. Rename them and re-upload.",
+            )
 
         if len(df) > MAX_ROWS:
             raise HTTPException(
@@ -130,6 +141,8 @@ async def analyze(
             conclusion=conclusion,
         )
         _RESULT_CACHE[cache_key] = result
+        if len(_RESULT_CACHE) > _CACHE_MAX:
+            _RESULT_CACHE.popitem(last=False)
         results.append(result)
         per_file.append((dataset, df))
 
@@ -315,7 +328,7 @@ def _cross_dataset_insights(
 # New: deeper analysis helpers
 # ---------------------------------------------------------------------------
 
-def _build_correlation_insight(measures: list, df: pd.DataFrame) -> InsightBlock | None:
+def _build_correlation_insight(measures: list, df: pd.DataFrame, row_count: int = 0) -> InsightBlock | None:
     """Compute pairwise Pearson correlations between numeric measures.
 
     Only surfaces pairs with |r| > 0.3. Returns a bar chart of correlation coefficients.
@@ -373,7 +386,11 @@ def _build_correlation_insight(measures: list, df: pd.DataFrame) -> InsightBlock
         ),
         bullets=bullets,
         chart=chart,
-        caveat="Correlation indicates statistical association, not causation. Investigate confounding factors before drawing causal conclusions.",
+        caveat=(
+            f"Dataset has only {row_count} rows — correlation values are unreliable at small sample sizes. Treat these as indicative only."
+            if row_count > 0 and row_count < 100
+            else "Correlation indicates statistical association, not causation. Investigate confounding factors before drawing causal conclusions."
+        ),
     )
 
 
@@ -786,7 +803,7 @@ def _build_insights(dataset: DatasetSummary, df: pd.DataFrame, goals: str | None
     ))
 
     # ── 2. Key Insights (will be replaced by LLM in _apply_narrative_rewrite) ─
-    key = _build_key_insights(measures, dimensions, time_cols, df)
+    key = _build_key_insights(measures, dimensions, time_cols, df, goals=goals)
     if key:
         insights.append(key)
     elif not measures:
@@ -796,7 +813,7 @@ def _build_insights(dataset: DatasetSummary, df: pd.DataFrame, goals: str | None
             insights.append(string_overview)
 
     # ── 3. Variable Relationships (correlation analysis) ──────────────────
-    corr_block = _build_correlation_insight(measures, df)
+    corr_block = _build_correlation_insight(measures, df, row_count=dataset.row_count)
     if corr_block:
         insights.append(corr_block)
     elif len(measures) >= 2:
@@ -825,7 +842,7 @@ def _build_insights(dataset: DatasetSummary, df: pd.DataFrame, goals: str | None
             )
 
     # ── 6. Dimension × measure breakdowns — all dimensions, not just 2 ────
-    for dim in dimensions[:4]:
+    for dim in _goal_relevant_dims(dimensions, goals)[:4]:
         insight = _dim_breakdown_insight(df, dim, measures)
         if insight:
             insights.append(insight)
@@ -836,11 +853,16 @@ def _build_insights(dataset: DatasetSummary, df: pd.DataFrame, goals: str | None
             chart = line_spec(df, time_col.name, measure.name)
             if chart:
                 trend_bullets = _build_trend_bullets(df, time_col.name, measure.name, chart)
+                trend_caveat = (
+                    f"Only {len(chart.x)} time periods available — trend direction may not be reliable with this few data points."
+                    if len(chart.x) < 6 else None
+                )
                 insights.append(InsightBlock(
                     title=f"{measure.name} over Time",
                     summary=f"How '{measure.name}' changes across time periods in '{time_col.name}'.",
                     bullets=trend_bullets,
                     chart=chart,
+                    caveat=trend_caveat,
                 ))
                 break  # one chart per time column is enough
         else:
@@ -895,6 +917,7 @@ def _build_key_insights(
     dimensions: list,
     time_cols: list,
     df: pd.DataFrame,
+    goals: str | None = None,
 ) -> InsightBlock | None:
     """Analyst thinking layer.
 
@@ -922,6 +945,7 @@ def _build_key_insights(
         return None
 
     ranked_dims = _rank_dimensions(dimensions, primary.name, global_mean, df)
+    ranked_dims = _goal_relevant_dims(ranked_dims, goals)
     statements: list[str] = []
 
     # ── Slots 1–3: deviation by dimension ─────────────────────────────────
@@ -1000,6 +1024,24 @@ def _rank_dimensions(dimensions: list, measure_name: str, global_mean: float, df
             scored.append((0.0, dim))
     scored.sort(key=lambda t: t[0], reverse=True)
     return [dim for _, dim in scored]
+
+
+def _goal_relevant_dims(dimensions: list, goals: str | None) -> list:
+    """Re-rank dimensions so those whose name appears in goals text come first.
+
+    Conservative: only boosts dims directly named in goals. Falls back to
+    original order if goals is None or no match is found.
+    """
+    if not goals or not dimensions:
+        return dimensions
+    goals_lower = goals.lower()
+    goal_tokens = set(re.split(r"[\s,./;:!?]+", goals_lower))
+
+    def score(dim) -> int:
+        dim_tokens = set(re.split(r"[\s_\-]+", dim.name.lower()))
+        return 1 if dim_tokens & goal_tokens else 0
+
+    return sorted(dimensions, key=score, reverse=True)
 
 
 def _deviation_statements(

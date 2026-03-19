@@ -23,7 +23,7 @@ const STEPS = [
   {
     num: "01",
     title: "Upload your data",
-    desc: "Drop in any CSV or Excel file. Multiple files are supported — each is profiled independently.",
+    desc: "Drop in any CSV or Excel file. Multiple files are supported, and each is profiled independently.",
   },
   {
     num: "02",
@@ -79,8 +79,7 @@ export default function LandingPage() {
           margin: "0 0 36px",
           fontWeight: 400,
         }}>
-          Upload a dataset. Get a clean, structured analytics report — instantly.
-          No dashboards, no configuration, no SQL.
+          Feed your data, and receive a clean, structured analytics report.
         </p>
         <button
           onClick={() => router.push("/upload")}
