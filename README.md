@@ -2,7 +2,7 @@
 
 **Upload a dataset. Add context. Get a structured, tailored analytics report.**
 
-MiniMemo Data Analytics is a lightweight analytics report generator that profiles tabular datasets, surfaces insights, and produces clean, readable reports — without requiring any data science setup.
+MiniMemo Data Analytics is a lightweight analytics report generator that profiles tabular datasets, surfaces insights, and produces clean, readable reports.
 
 **Live:** [mini-memo-data-analytics.vercel.app](https://mini-memo-data-analytics.vercel.app)
 
@@ -25,6 +25,10 @@ All analysis is deterministic. An LLM optionally rewrites narrative sections —
 ---
 
 ## Example Report
+
+![Example report — dashboard view](examples/sales_large-dashboard%20(2).png)
+
+Full report (PDF): [examples/MiniMemo example report.pdf](examples/MiniMemo%20example%20report.pdf)
 
 Given a sales dataset with columns `date`, `revenue`, `category`, `region`:
 
@@ -151,10 +155,3 @@ ALLOWED_ORIGINS=https://mini-memo-data-analytics.vercel.app
 ```
 
 ---
-
-## Design Principles
-
-- **Deterministic first.** All numbers come from pandas. The LLM never invents statistics.
-- **Generalizable.** No hardcoded assumptions about dataset domain or structure.
-- **Multi-dataset ready.** Each file is profiled independently; join detection is available.
-- **Minimal UI.** Clean, readable, structured — not a dashboard.
