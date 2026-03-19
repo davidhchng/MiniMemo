@@ -1,6 +1,16 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+
+const LOAD_STEPS = [
+  "Reading dataset…",
+  "Profiling columns…",
+  "Running statistical analysis…",
+  "Generating insights…",
+  "Writing recommendations…",
+  "Finishing up…",
+]
+const STEP_DELAYS = [800, 2500, 5000, 8500, 13000]
 
 function useBtn() {
   const [hov, setHov] = useState(false)
@@ -30,8 +40,21 @@ export default function ContextPage() {
   const [goals, setGoals]           = useState("")
   const [background, setBackground] = useState("")
   const [loading, setLoading]       = useState(false)
+  const [loadStep, setLoadStep]     = useState(0)
   const [error, setError]           = useState<string | null>(null)
-  const submitBtn = useBtn()
+  const submitBtn  = useBtn()
+  const stepTimers = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadStep(0)
+      return
+    }
+    stepTimers.current = STEP_DELAYS.map((delay, i) =>
+      setTimeout(() => setLoadStep(i + 1), delay),
+    )
+    return () => stepTimers.current.forEach(clearTimeout)
+  }, [loading])
 
   useEffect(() => {
     if (!pendingFiles || pendingFiles.length === 0) {
@@ -58,6 +81,56 @@ export default function ContextPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: "100vh", background: "#ffffff",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        padding: "48px 24px",
+      }}>
+        <div style={{ width: "100%", maxWidth: 400 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 32px" }}>
+            Generating report
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {LOAD_STEPS.map((label, i) => {
+              const done    = i < loadStep
+              const active  = i === loadStep
+              const pending = i > loadStep
+              return (
+                <div key={label} style={{
+                  display: "flex", alignItems: "center", gap: 14,
+                  padding: "14px 0",
+                  borderTop: "1px solid #f3f4f6",
+                  borderBottom: i === LOAD_STEPS.length - 1 ? "1px solid #f3f4f6" : "none",
+                }}>
+                  <div style={{
+                    width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                    background: done ? "#111827" : active ? "#f3f4f6" : "transparent",
+                    border: done ? "none" : active ? "2px solid #111827" : "2px solid #e5e7eb",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    transition: "all 0.2s ease",
+                  }}>
+                    {done && <span style={{ color: "#fff", fontSize: 11, lineHeight: 1 }}>✓</span>}
+                    {active && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#111827", display: "block" }} />}
+                  </div>
+                  <span style={{
+                    fontSize: 14, lineHeight: 1,
+                    color: done ? "#111827" : active ? "#111827" : "#d1d5db",
+                    fontWeight: active ? 600 : done ? 500 : 400,
+                    transition: "color 0.2s ease",
+                  }}>
+                    {label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -217,7 +290,7 @@ export default function ContextPage() {
               ...(!loading ? submitBtn.style : {}),
             }}
           >
-            {loading ? "Generating report…" : "Generate Report"}
+            Generate Report
           </button>
         </form>
 

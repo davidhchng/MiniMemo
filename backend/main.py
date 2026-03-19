@@ -10,6 +10,7 @@ TODO (Phase 3): Add POST /sessions/{id}/context for user objective + notes
 TODO (Phase 4): Replace mock report sections with LLM-generated narrative
 """
 
+import hashlib
 import io
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -37,6 +38,15 @@ app.add_middleware(
 
 MAX_ROWS = 200_000
 ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
+
+# In-memory cache: hash(file_bytes + goals + background) → AnalysisResponse
+_RESULT_CACHE: dict[str, AnalysisResponse] = {}
+
+def _cache_key(content: bytes, goals: str | None, background: str | None) -> str:
+    h = hashlib.sha256(content)
+    h.update((goals or "").encode())
+    h.update((background or "").encode())
+    return h.hexdigest()
 
 # String flags that mark a column as non-analytic (exclude from dimensions)
 _EXCLUSION_FLAGS = {"email", "url_like", "phone_like", "id_like"}
@@ -70,6 +80,13 @@ async def analyze(
             )
 
         contents = await file.read()
+        cache_key = _cache_key(contents, goals, background)
+
+        if cache_key in _RESULT_CACHE:
+            cached = _RESULT_CACHE[cache_key]
+            results.append(cached)
+            per_file.append((cached.dataset, pd.read_csv(io.BytesIO(contents)) if ext == ".csv" else pd.read_excel(io.BytesIO(contents))))
+            continue
 
         try:
             df = (
@@ -103,7 +120,7 @@ async def analyze(
         rec_items = _build_recommendation_items(dataset, df, key_bullets, goals, background)
         conclusion = _build_conclusion(key_bullets, dataset.filename, _narrative_svc, goals)
 
-        results.append(AnalysisResponse(
+        result = AnalysisResponse(
             dataset=dataset,
             insights=insights,
             report_sections=_build_report_sections(dataset, key_bullets, goals, background),
@@ -111,7 +128,9 @@ async def analyze(
             assumptions=assumptions,
             limitations=limitations,
             conclusion=conclusion,
-        ))
+        )
+        _RESULT_CACHE[cache_key] = result
+        results.append(result)
         per_file.append((dataset, df))
 
     suggested_joins = _detect_joins(per_file) if len(per_file) > 1 else []

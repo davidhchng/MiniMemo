@@ -93,6 +93,20 @@ export default function ReportPage() {
           .mm-nav { display: none !important; }
           .no-print { display: none !important; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .mm-section { page-break-inside: avoid; break-inside: avoid; }
+          .mm-main { padding: 32px 24px 60px !important; max-width: 100% !important; }
+          table { page-break-inside: avoid; break-inside: avoid; }
+          h1, h2, h3, h4 { page-break-after: avoid; break-after: avoid; }
+          .js-plotly-plot { page-break-inside: avoid; break-inside: avoid; }
+        }
+        @media (max-width: 640px) {
+          .mm-main { padding: 40px 20px 80px !important; }
+          .mm-nav-inner { padding: 0 20px !important; }
+          .mm-dashboard-grid { grid-template-columns: 1fr !important; }
+          .mm-kpi-grid { grid-template-columns: 1fr 1fr !important; }
+          .mm-table-wrap { font-size: 12px !important; }
+          .mm-nav-actions { gap: 12px !important; }
+          .mm-nav-actions .nav-edit { display: none; }
         }
       `}</style>
 
@@ -106,18 +120,26 @@ export default function ReportPage() {
         top: 0,
         zIndex: 10,
       }}>
-        <div style={{ maxWidth: 860, margin: "0 auto", height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="mm-nav-inner" style={{ maxWidth: 860, margin: "0 auto", height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0" }}>
           <span style={{ fontWeight: 700, fontSize: 20, letterSpacing: "-0.02em", color: T.textPrimary }}>MiniMemo</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <div className="mm-nav-actions" style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <button
               onClick={() => window.print()}
               onMouseEnter={downloadBtn.onMouseEnter}
               onMouseLeave={downloadBtn.onMouseLeave}
               onMouseDown={downloadBtn.onMouseDown}
               onMouseUp={downloadBtn.onMouseUp}
+              className="no-print"
               style={{ background: "none", border: "none", padding: "5px 0", fontSize: 13, color: T.textMuted, cursor: "pointer", ...downloadBtn.style }}
             >
               Download PDF
+            </button>
+            <button
+              onClick={() => router.push("/context")}
+              className="no-print"
+              style={{ background: "none", border: "none", padding: "5px 0", fontSize: 13, color: T.textMuted, cursor: "pointer" }}
+            >
+              Edit goals
             </button>
             <button
               onClick={() => { clear(); router.push("/") }}
@@ -133,7 +155,7 @@ export default function ReportPage() {
         </div>
       </nav>
 
-      <main style={{ maxWidth: 860, margin: "0 auto", padding: "64px 32px 120px" }}>
+      <main className="mm-main" style={{ maxWidth: 860, margin: "0 auto", padding: "64px 32px 120px" }}>
 
         {/* ── Page header ── */}
         <div style={{ marginBottom: 64 }}>
@@ -411,7 +433,7 @@ function DashboardSection({
     <Section label="Dashboard">
       <div ref={dashboardRef} style={{ background: T.pageBg, padding: "4px 0 20px" }}>
         {/* KPI cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: chartsToShow.length > 0 ? 28 : 0 }}>
+        <div className="mm-kpi-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: chartsToShow.length > 0 ? 28 : 0 }}>
           {kpis.map(([label, value]) => (
             <div key={label} style={{
               border: `1px solid ${T.divider}`,
@@ -431,7 +453,7 @@ function DashboardSection({
 
         {/* Chart panels */}
         {chartsToShow.length > 0 && (
-          <div style={{
+          <div className="mm-dashboard-grid" style={{
             display: "grid",
             gridTemplateColumns: chartsToShow.length === 1 ? "1fr" : "1fr 1fr",
             gap: 16,
@@ -724,7 +746,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 64 }}>
+    <div className="mm-section" style={{ marginBottom: 64 }}>
       <div style={{ borderTop: `1px solid ${T.divider}`, paddingTop: 20, marginBottom: 28 }}>
         <SectionLabel>{label}</SectionLabel>
       </div>
