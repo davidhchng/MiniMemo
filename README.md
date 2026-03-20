@@ -1,8 +1,8 @@
 # MiniMemo Data Analytics
 
-**Upload a dataset. Add context. Get a structured, tailored analytics report.**
+**Upload a dataset, add context, and get a structured and tailored analysis.**
 
-MiniMemo Data Analytics is a lightweight analytics report generator that profiles tabular datasets, surfaces insights, and produces clean, readable reports.
+MiniMemo Data Analytics is a lightweight analytics report creator that profiles tabular datasets, surfaces insights, and produces clean, readable reports.
 
 **Live:** [mini-memo-data-analytics.vercel.app](https://mini-memo-data-analytics.vercel.app)
 
@@ -20,7 +20,7 @@ MiniMemo Data Analytics is a lightweight analytics report generator that profile
    - Time trends when date columns are present
    - Ranked, actionable recommendations
 
-All analysis is deterministic. An LLM optionally rewrites narrative sections — but never invents numbers.
+All analysis is deterministic.
 
 ---
 
