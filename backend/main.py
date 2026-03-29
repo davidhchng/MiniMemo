@@ -26,7 +26,26 @@ import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 
-from models import AnalysisResponse, BatchAnalysisResponse, DatasetSummary, InsightBlock, JoinInsight, JoinSuggestion, RecommendationItem, ReportSection
+from database import (
+    build_connection_url,
+    execute_query,
+    fetch_preview_data,
+    test_connection,
+)
+from models import (
+    AnalysisResponse,
+    BatchAnalysisResponse,
+    DatabaseConnection,
+    DatabaseConnectionResult,
+    DatabaseQuery,
+    DatasetSummary,
+    InsightBlock,
+    JoinInsight,
+    JoinSuggestion,
+    RecommendationItem,
+    ReportSection,
+    TablePreview,
+)
 from processing import profile_dataframe
 from report.charts import bar_spec, histogram_spec, line_spec
 from report.llm_client import get_llm_client
@@ -184,37 +203,105 @@ async def analyze(
         if len(df) == 0:
             raise HTTPException(status_code=422, detail=f"'{filename}' has no rows.")
 
-        dataset  = profile_dataframe(df, filename, llm_client=_llm_client)
-        insights = _build_insights(dataset, df, goals)
-        insights = _apply_narrative_rewrite(insights, dataset, df, goals)
-
-        key_block   = next((b for b in insights if b.title == "Key Insights"), None)
-        key_bullets = key_block.bullets if key_block else []
-
-        excl = _excluded(dataset)
-        assumptions, limitations = _build_split_assumptions(dataset, excl, _narrative_svc)
-        if dataset.row_count < 100:
-            assumptions.insert(0, f"This dataset has only {dataset.row_count} rows. Statistical patterns may not generalise — interpret results cautiously.")
-        rec_items = _build_recommendation_items(dataset, df, key_bullets, goals, background)
-        conclusion = _build_conclusion(key_bullets, dataset.filename, _narrative_svc, goals)
-
-        result = AnalysisResponse(
-            dataset=dataset,
-            insights=insights,
-            report_sections=_build_report_sections(dataset, key_bullets, goals, background),
-            recommendation_items=rec_items,
-            assumptions=assumptions,
-            limitations=limitations,
-            conclusion=conclusion,
-        )
+        result = _analyze_dataframe(df, filename, goals, background)
         _RESULT_CACHE[cache_key] = result
         if len(_RESULT_CACHE) > _CACHE_MAX:
             _RESULT_CACHE.popitem(last=False)
         results.append(result)
-        per_file.append((dataset, df))
+        per_file.append((result.dataset, df))
 
     suggested_joins = _detect_joins(per_file) if len(per_file) > 1 else []
     return BatchAnalysisResponse(results=results, suggested_joins=suggested_joins)
+
+
+def _analyze_dataframe(
+    df: pd.DataFrame,
+    source_name: str,
+    goals: str | None,
+    background: str | None,
+) -> AnalysisResponse:
+    dataset  = profile_dataframe(df, source_name, llm_client=_llm_client)
+    insights = _build_insights(dataset, df, goals)
+    insights = _apply_narrative_rewrite(insights, dataset, df, goals)
+
+    key_block   = next((b for b in insights if b.title == "Key Insights"), None)
+    key_bullets = key_block.bullets if key_block else []
+
+    excl = _excluded(dataset)
+    assumptions, limitations = _build_split_assumptions(dataset, excl, _narrative_svc)
+    if dataset.row_count < 100:
+        assumptions.insert(0, f"This dataset has only {dataset.row_count} rows. Statistical patterns may not generalise — interpret results cautiously.")
+    rec_items = _build_recommendation_items(dataset, df, key_bullets, goals, background)
+    conclusion = _build_conclusion(key_bullets, dataset.filename, _narrative_svc, goals)
+
+    return AnalysisResponse(
+        dataset=dataset,
+        insights=insights,
+        report_sections=_build_report_sections(dataset, key_bullets, goals, background),
+        recommendation_items=rec_items,
+        assumptions=assumptions,
+        limitations=limitations,
+        conclusion=conclusion,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Database connectivity endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/db/test-connection", response_model=DatabaseConnectionResult)
+def db_test_connection(conn: DatabaseConnection):
+    url = build_connection_url(
+        conn.db_type, conn.host, conn.port, conn.database, conn.username, conn.password
+    )
+    result = test_connection(url)
+    return DatabaseConnectionResult(**result)
+
+
+@app.post("/db/preview", response_model=TablePreview)
+def db_preview(conn: DatabaseConnection, table: str):
+    url = build_connection_url(
+        conn.db_type, conn.host, conn.port, conn.database, conn.username, conn.password
+    )
+    try:
+        df, row_count = fetch_preview_data(url, table, limit=50)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    sample_rows = df.astype(str).to_dict(orient="records")
+    return TablePreview(
+        columns=list(df.columns),
+        sample_rows=sample_rows,
+        row_count_estimate=row_count,
+    )
+
+
+@app.post("/db/analyze", response_model=BatchAnalysisResponse)
+def db_analyze(
+    payload: DatabaseQuery,
+    goals: str | None = None,
+    background: str | None = None,
+):
+    conn = payload.connection
+    url = build_connection_url(
+        conn.db_type, conn.host, conn.port, conn.database, conn.username, conn.password
+    )
+
+    try:
+        df = execute_query(url, payload.query)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Query failed: {exc}")
+
+    if len(df) == 0:
+        raise HTTPException(status_code=422, detail="Query returned no rows.")
+
+    source_name = payload.source_label or "database_query"
+    result = _analyze_dataframe(df, source_name, goals, background)
+    return BatchAnalysisResponse(results=[result], suggested_joins=[])
 
 
 # ---------------------------------------------------------------------------

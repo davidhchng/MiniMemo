@@ -1,12 +1,14 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import type { BatchAnalysisResponse } from "../lib/types"
+import type { BatchAnalysisResponse, DatabaseQuery } from "../lib/types"
 
 interface ReportState {
   report: BatchAnalysisResponse | null
   pendingFiles: File[] | null
+  pendingDbQuery: DatabaseQuery | null
   setReport: (report: BatchAnalysisResponse) => void
   setPendingFiles: (files: File[]) => void
+  setPendingDbQuery: (query: DatabaseQuery) => void
   clear: () => void
 }
 
@@ -15,9 +17,11 @@ export const useReportStore = create<ReportState>()(
     (set) => ({
       report: null,
       pendingFiles: null,
+      pendingDbQuery: null,
       setReport: (report) => set({ report }),
       setPendingFiles: (files) => set({ pendingFiles: files }),
-      clear: () => set({ report: null, pendingFiles: null }),
+      setPendingDbQuery: (query) => set({ pendingDbQuery: query }),
+      clear: () => set({ report: null, pendingFiles: null, pendingDbQuery: null }),
     }),
     {
       name: "minimemo-report",

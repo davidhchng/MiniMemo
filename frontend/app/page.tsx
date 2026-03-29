@@ -46,106 +46,6 @@ const FEATURES = [
   { label: "Recommendations", desc: "Actionable next steps ranked by estimated impact." },
 ]
 
-function BackgroundShapes() {
-  return (
-    <svg
-      aria-hidden="true"
-      style={{
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        pointerEvents: "none",
-        overflow: "visible",
-      }}
-    >
-      {/* ── Angular bar chart — top left ── */}
-      {[
-        { x: 32,  h: 44 },
-        { x: 54,  h: 88 },
-        { x: 76,  h: 56 },
-        { x: 98,  h: 112 },
-        { x: 120, h: 70 },
-        { x: 142, h: 36 },
-      ].map(({ x, h }) => (
-        <rect key={x} x={x} y={180 - h} width="16" height={h} rx="0" fill="#22c55e" opacity="0.22" />
-      ))}
-      <line x1="24" y1="181" x2="166" y2="181" stroke="#22c55e" strokeWidth="1.5" opacity="0.3" />
-      <line x1="24" y1="100" x2="24" y2="182" stroke="#22c55e" strokeWidth="1.5" opacity="0.3" />
-
-      {/* ── Jagged trend line — top right ── */}
-      <polyline
-        points="calc(100% - 340px),60 calc(100% - 280px),28 calc(100% - 220px),72 calc(100% - 160px),18 calc(100% - 100px),50 calc(100% - 40px),10"
-        fill="none"
-        stroke="#22c55e"
-        strokeWidth="2.5"
-        strokeLinejoin="miter"
-        opacity="0.35"
-      />
-      {/* sharp tick marks on x-axis */}
-      {[340, 280, 220, 160, 100, 40].map((offset) => (
-        <line key={offset}
-          x1={`calc(100% - ${offset}px)`} y1="82"
-          x2={`calc(100% - ${offset}px)`} y2="92"
-          stroke="#22c55e" strokeWidth="1.5" opacity="0.3"
-        />
-      ))}
-      <line x1="calc(100% - 350px)" y1="92" x2="calc(100% - 28px)" y2="92" stroke="#22c55e" strokeWidth="1.5" opacity="0.25" />
-
-      {/* ── Abstract grid / heatmap — bottom right ── */}
-      {[0,1,2,3].map(row =>
-        [0,1,2,3,4].map(col => {
-          const opacity = ((row * 5 + col) % 7) * 0.04 + 0.06
-          return (
-            <rect
-              key={`hm-${row}-${col}`}
-              x={`calc(100% - ${col * 28 + 80}px)`}
-              y={`calc(100% - ${row * 28 + 120}px)`}
-              width="22" height="22" rx="0"
-              fill="#22c55e"
-              opacity={opacity}
-            />
-          )
-        })
-      )}
-
-      {/* ── Diagonal slash marks — left side middle ── */}
-      {[0,1,2,3].map(i => (
-        <line key={i}
-          x1={20 + i * 18} y1="48%"
-          x2={36 + i * 18} y2="calc(48% + 48px)"
-          stroke="#22c55e" strokeWidth="2" opacity="0.2"
-        />
-      ))}
-
-      {/* ── Sharp triangle — bottom left ── */}
-      <polygon
-        points="30,calc(100% - 30px) 30,calc(100% - 130px) 100,calc(100% - 30px)"
-        fill="none"
-        stroke="#22c55e"
-        strokeWidth="1.5"
-        opacity="0.25"
-      />
-      <polygon
-        points="55,calc(100% - 30px) 55,calc(100% - 85px) 100,calc(100% - 30px)"
-        fill="#22c55e"
-        opacity="0.08"
-      />
-
-      {/* ── Cross / plus markers scattered ── */}
-      {[
-        { cx: "calc(100% - 20px)", cy: "38%"  },
-        { cx: "8%",                cy: "32%"  },
-        { cx: "calc(100% - 48px)", cy: "62%"  },
-      ].map(({ cx, cy }, i) => (
-        <g key={i}>
-          <line x1={cx} y1={`calc(${cy} - 8px)`} x2={cx} y2={`calc(${cy} + 8px)`} stroke="#111827" strokeWidth="1.5" opacity="0.12" />
-          <line x1={`calc(${cx} - 8px)`} y1={cy} x2={`calc(${cx} + 8px)`} y2={cy} stroke="#111827" strokeWidth="1.5" opacity="0.12" />
-        </g>
-      ))}
-    </svg>
-  )
-}
 
 export default function LandingPage() {
   const router = useRouter()
@@ -163,7 +63,6 @@ export default function LandingPage() {
       overflow: "hidden",
     }}>
 
-      <BackgroundShapes />
 
       {/* Hero */}
       <div style={{ position: "relative", textAlign: "center", maxWidth: 560, marginBottom: 72 }}>

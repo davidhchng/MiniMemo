@@ -106,3 +106,32 @@ class JoinSuggestion(BaseModel):
 class BatchAnalysisResponse(BaseModel):
     results: list[AnalysisResponse]
     suggested_joins: list[JoinSuggestion] = []
+
+
+# --- Database connectivity models ---
+
+class DatabaseConnection(BaseModel):
+    db_type: Literal["postgresql", "mysql", "sqlite"]
+    host: str = ""
+    port: int | None = None
+    database: str
+    username: str = ""
+    password: str = ""
+
+
+class DatabaseConnectionResult(BaseModel):
+    ok: bool
+    tables: list[str]
+    error: str | None = None
+
+
+class TablePreview(BaseModel):
+    columns: list[str]
+    sample_rows: list[dict[str, Any]]
+    row_count_estimate: int
+
+
+class DatabaseQuery(BaseModel):
+    connection: DatabaseConnection
+    query: str          # raw SQL or table name (backend decides based on context)
+    source_label: str = ""

@@ -193,6 +193,24 @@ export default function UploadPage() {
           >
             Continue →
           </button>
+
+          <div style={{ textAlign: "center", marginTop: 4 }}>
+            <button
+              type="button"
+              onClick={() => router.push("/connect")}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                fontSize: 12,
+                color: "#9ca3af",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              Or connect to a database
+            </button>
+          </div>
         </form>
 
         {error && (

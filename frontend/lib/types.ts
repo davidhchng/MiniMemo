@@ -99,3 +99,32 @@ export interface BatchAnalysisResponse {
   results: AnalysisResponse[]
   suggested_joins: JoinSuggestion[]
 }
+
+// --- Database connectivity types ---
+
+export interface DatabaseConnection {
+  db_type: "postgresql" | "mysql" | "sqlite"
+  host: string
+  port: number | null
+  database: string
+  username: string
+  password: string
+}
+
+export interface DatabaseConnectionResult {
+  ok: boolean
+  tables: string[]
+  error: string | null
+}
+
+export interface TablePreview {
+  columns: string[]
+  sample_rows: Record<string, string>[]
+  row_count_estimate: number
+}
+
+export interface DatabaseQuery {
+  connection: DatabaseConnection
+  query: string
+  source_label: string
+}

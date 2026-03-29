@@ -28,14 +28,15 @@ function useBtn() {
   }
 }
 import { useRouter } from "next/navigation"
-import { analyzeFiles } from "../../lib/api"
+import { analyzeFiles, analyzeDb } from "../../lib/api"
 import { useReportStore } from "../../store/report-store"
 
 export default function ContextPage() {
   const router = useRouter()
-  const pendingFiles = useReportStore((s) => s.pendingFiles)
-  const setReport    = useReportStore((s) => s.setReport)
-  const clear        = useReportStore((s) => s.clear)
+  const pendingFiles   = useReportStore((s) => s.pendingFiles)
+  const pendingDbQuery = useReportStore((s) => s.pendingDbQuery)
+  const setReport      = useReportStore((s) => s.setReport)
+  const clear          = useReportStore((s) => s.clear)
 
   const [goals, setGoals]           = useState("")
   const [background, setBackground] = useState("")
@@ -56,24 +57,35 @@ export default function ContextPage() {
     return () => stepTimers.current.forEach(clearTimeout)
   }, [loading])
 
+  const hasSource = (pendingFiles && pendingFiles.length > 0) || pendingDbQuery !== null
+
   useEffect(() => {
-    if (!pendingFiles || pendingFiles.length === 0) {
+    if (!hasSource) {
       router.replace("/upload")
     }
-  }, [pendingFiles, router])
+  }, [hasSource, router])
 
-  if (!pendingFiles || pendingFiles.length === 0) return null
+  if (!hasSource) return null
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!pendingFiles) return
     setLoading(true)
     setError(null)
     try {
-      const result = await analyzeFiles(pendingFiles, {
-        goals: goals.trim() || undefined,
-        background: background.trim() || undefined,
-      })
+      let result
+      if (pendingDbQuery) {
+        result = await analyzeDb(pendingDbQuery, {
+          goals: goals.trim() || undefined,
+          background: background.trim() || undefined,
+        })
+      } else if (pendingFiles) {
+        result = await analyzeFiles(pendingFiles, {
+          goals: goals.trim() || undefined,
+          background: background.trim() || undefined,
+        })
+      } else {
+        throw new Error("No data source selected.")
+      }
       setReport(result)
       router.push("/report")
     } catch (err) {
@@ -147,7 +159,7 @@ export default function ContextPage() {
       {/* Back link */}
       <div style={{ width: "100%", maxWidth: 520, marginBottom: 24 }}>
         <button
-          onClick={() => router.push("/upload")}
+          onClick={() => router.push(pendingDbQuery ? "/connect" : "/upload")}
           style={{ background: "none", border: "none", padding: 0, fontSize: 13, color: "#9ca3af", cursor: "pointer" }}
         >
           ← Back
@@ -172,7 +184,7 @@ export default function ContextPage() {
           </p>
         </div>
 
-        {/* Files summary */}
+        {/* Source summary */}
         <div style={{
           background: "#f9fafb",
           border: "1px solid #f3f4f6",
@@ -183,14 +195,30 @@ export default function ContextPage() {
           flexDirection: "column",
           gap: 4,
         }}>
-          <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "#9ca3af", marginBottom: 4 }}>
-            Files
-          </span>
-          {pendingFiles.map((f) => (
-            <span key={f.name} style={{ fontSize: 13, color: "#16a34a" }}>
-              ✓ {f.name}
-            </span>
-          ))}
+          {pendingDbQuery ? (
+            <>
+              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "#9ca3af", marginBottom: 4 }}>
+                Database
+              </span>
+              <span style={{ fontSize: 13, color: "#16a34a" }}>
+                ✓ {pendingDbQuery.source_label || pendingDbQuery.connection.database}
+              </span>
+              <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                {pendingDbQuery.connection.db_type} · {pendingDbQuery.query.length > 60 ? pendingDbQuery.query.slice(0, 57) + "..." : pendingDbQuery.query}
+              </span>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "#9ca3af", marginBottom: 4 }}>
+                Files
+              </span>
+              {(pendingFiles ?? []).map((f) => (
+                <span key={f.name} style={{ fontSize: 13, color: "#16a34a" }}>
+                  ✓ {f.name}
+                </span>
+              ))}
+            </>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
