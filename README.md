@@ -1,6 +1,6 @@
 # MiniMemo Data Analytics
 
-**Upload a dataset, add context, and get a structured and tailored analysis.**
+**Upload a dataset (or connect to a database), add context, and get a structured and tailored analysis.**
 
 MiniMemo Data Analytics is a lightweight analytics report creator that profiles tabular datasets, surfaces insights, and produces clean, readable reports.
 
@@ -10,7 +10,7 @@ MiniMemo Data Analytics is a lightweight analytics report creator that profiles 
 
 ## What It Does
 
-1. Upload one or more datasets (CSV, XLSX, TSV, JSON, JSONL, Parquet)
+1. Upload one or more datasets (CSV, XLSX, TSV, JSON, JSONL, Parquet) or connect to a database
 2. Optionally describe your goal and dataset background
 3. Receive a structured report covering:
    - Column types, null rates, cardinality, and distributions
